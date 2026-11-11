@@ -49,6 +49,7 @@
         <a href="#/learn" data-view="learn"><svg><use href="/static/icons/sprite.svg#i-graduation-cap"/></svg><span>はじめての競馬</span></a>
         <a href="#/races" data-view="races"><svg><use href="/static/icons/sprite.svg#i-flag"/></svg><span>レース予想</span></a>
         <a href="#/results" data-view="results"><svg><use href="/static/icons/sprite.svg#i-chart-line"/></svg><span>予想の成績</span></a>
+        <a href="#/ai" data-view="ai"><svg><use href="/static/icons/sprite.svg#i-sparkles"/></svg><span>AI予想</span></a>
         <a href="#/sim" data-view="sim"><svg><use href="/static/icons/sprite.svg#i-rotate-3d"/></svg><span>3D シミュレーション</span></a>
         <a href="#/live" data-view="live"><svg><use href="/static/icons/sprite.svg#i-tv"/></svg><span>中継</span></a>
         <p class="nav-label">データ</p>
@@ -149,6 +150,68 @@
           <div class="schedule" id="schedule"><p class="muted">読み込み中</p></div>
           <p class="fine">出典: JRA 公式サイト (開催日程・出馬表・オッズ)。人の操作なしで自動的に取り込み、更新しています。</p>
         </section>
+      </section>
+
+      <!-- AI -->
+      <section class="view" id="view-ai">
+        <header class="page-head">
+          <div><p class="eyebrow">AI Prediction</p><h1 class="title">AI予想</h1></div>
+          <button class="btn ghost small" id="ai-settings-open" type="button"><svg><use href="/static/icons/sprite.svg#i-key-round"/></svg>APIキーとモデル</button>
+        </header>
+        <p class="note ai-lead">Gemini と Claude に同じレースを予想させ、2つの AI の勝率を平均した「総合予想」を出します。出馬表にいる馬が名鑑に載っていれば、戦績・血統・能力値も AI に渡して予想の材料にします。</p>
+        <div class="ai-msg err" id="ai-unavailable" hidden>AI 予想は、パソコンで起動したアプリ版 (run.bat / ./run.sh) でだけ使えます。Web 版では API キーを安全に保管できないためです。</div>
+        <div class="ai-layout">
+          <section class="card ai-form">
+            <header class="card-head"><h3>レース情報</h3></header>
+            <!-- JRA の今週の出馬表 (レース予想と同じ自動取得のデータ)。データがないときは隠す -->
+            <div class="ai-live" id="ai-live" hidden>
+              <p class="note">JRA の今週の出馬表から選ぶと、出走馬・オッズ・近走が自動で入ります (Web 検索なしでも予想できます)。</p>
+              <div class="field-row">
+                <label class="field"><span>開催日</span><select id="ai-live-date"></select></label>
+                <label class="field"><span>競馬場</span><select id="ai-live-venue"></select></label>
+              </div>
+              <label class="field"><span>レース</span><select id="ai-live-race"></select></label>
+            </div>
+            <label class="field"><span>レース名</span><input id="ai-name" type="text" list="ai-race-list" placeholder="例: ジャパンカップ" autocomplete="off"></label>
+            <datalist id="ai-race-list"></datalist>
+            <div class="field-row">
+              <label class="field"><span>開催日</span><input id="ai-date" type="date"></label>
+              <label class="field"><span>競馬場</span><select id="ai-venue"><option value="">指定なし</option></select></label>
+            </div>
+            <div class="field-row">
+              <label class="field"><span>コース</span><select id="ai-surface"><option value="">指定なし</option><option>芝</option><option>ダート</option></select></label>
+              <label class="field"><span>距離 (m)</span><input id="ai-distance" type="number" min="800" max="4000" step="100" placeholder="2400"></label>
+            </div>
+            <label class="field"><span>馬場状態</span><select id="ai-going"><option value="">不明</option><option>良</option><option>稍重</option><option>重</option><option>不良</option></select></label>
+            <label class="field"><span>出走馬・メモ <em>任意</em></span>
+              <textarea id="ai-entries" rows="8" placeholder="競馬サイトの出馬表をそのまま貼り付けられます。&#10;空欄でも、Web 検索が使えれば AI が調べます。"></textarea></label>
+            <div class="chips ai-matches" id="ai-matches"></div>
+            <div class="ai-opts">
+              <label class="check"><input type="checkbox" id="ai-use-gemini" checked> Gemini</label>
+              <label class="check"><input type="checkbox" id="ai-use-claude"> Claude</label>
+              <label class="check"><input type="checkbox" id="ai-web" checked> Web 検索で最新情報を調べる</label>
+              <label class="check"><input type="checkbox" id="ai-test"> テストモード (AI を使わず無料で動作確認)</label>
+            </div>
+            <p class="fine" id="ai-key-status"></p>
+            <button class="btn primary wide" id="ai-run" type="button"><svg><use href="/static/icons/sprite.svg#i-sparkles"/></svg>AI に予想させる</button>
+            <p class="fine" id="ai-status" aria-live="polite"></p>
+          </section>
+          <section class="card ai-result">
+            <header class="card-head"><h3 id="ai-result-title">予想</h3>
+              <div class="seg small" id="ai-tabs" role="tablist">
+                <button data-ai-tab="total" class="on" type="button">総合</button><button data-ai-tab="gemini" type="button">Gemini</button><button data-ai-tab="claude" type="button">Claude</button>
+              </div>
+            </header>
+            <div id="ai-out"><p class="muted">レース情報を入れて「AI に予想させる」を押してください。</p></div>
+            <div class="btn-row"><button class="btn ghost small" id="ai-to-sim" type="button" disabled><svg><use href="/static/icons/sprite.svg#i-rotate-3d"/></svg>この予想の上位馬を3Dで走らせる</button></div>
+          </section>
+        </div>
+        <section class="card">
+          <header class="card-head"><h3>履歴と的中成績</h3><span class="muted">レース後に着順を入れると、AI ごとの的中率を集計します (テストモードは除く)</span></header>
+          <div class="ai-stats" id="ai-stats"></div>
+          <div class="table-wrap"><table class="table" id="ai-history"></table></div>
+        </section>
+        <p class="fine">AI の予想は参考情報で、的中を保証するものではありません。Gemini は無料枠でも使えますが、無料枠では Web 検索が使えないことが多く、そのときは自動で検索なしに切り替えます (最新の出馬表を貼り付けてください)。Claude の API に無料枠はありません。</p>
       </section>
 
       <!-- SIM -->
@@ -395,6 +458,35 @@
       <h3>予想メモ</h3>
       <p class="muted" id="note-race"></p>
       <textarea id="note-text" rows="6" placeholder="パドックの気配、馬場の傾向、買い目など"></textarea>
+      <div class="btn-row end"><button class="btn ghost" value="cancel" type="submit">キャンセル</button><button class="btn primary" value="save" type="submit">保存</button></div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog wide" id="ai-dialog">
+    <form method="dialog">
+      <h3>APIキーとモデル</h3>
+      <p class="muted">キーはこのパソコンの <code id="ai-store-path">~/.config/keiba-vision/ai-settings.json</code> にだけ保存され、画面には末尾 4 文字しか表示しません。変更するときだけ入力してください。</p>
+      <label class="field"><span>Gemini APIキー <em id="ai-gem-hint"></em></span><input id="ai-gem-key" type="password" autocomplete="off" placeholder="AIza…"></label>
+      <label class="field"><span>Gemini モデル</span>
+        <span class="inline"><input id="ai-gem-model" type="text" list="ai-gem-models" autocomplete="off"><button class="btn ghost small" type="button" data-models="gemini">一覧取得</button></span></label>
+      <datalist id="ai-gem-models"><option value="gemini-flash-latest"><option value="gemini-flash-lite-latest"><option value="gemini-pro-latest"></datalist>
+      <label class="field"><span>Claude APIキー <em id="ai-cla-hint"></em></span><input id="ai-cla-key" type="password" autocomplete="off" placeholder="sk-ant-…"></label>
+      <label class="field"><span>Claude モデル</span>
+        <span class="inline"><input id="ai-cla-model" type="text" list="ai-cla-models" autocomplete="off"><button class="btn ghost small" type="button" data-models="claude">一覧取得</button></span></label>
+      <datalist id="ai-cla-models"><option value="claude-sonnet-5-5"><option value="claude-opus-5-5"><option value="claude-haiku-5-5"></datalist>
+      <p class="fine">キーの取得: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> ・ <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anthropic Console</a>。環境変数 GEMINI_API_KEY / ANTHROPIC_API_KEY でも設定できます。</p>
+      <div class="btn-row end">
+        <button class="btn ghost" value="clear" type="submit" id="ai-clear-keys">キーを消す</button>
+        <button class="btn ghost" value="cancel" type="submit">キャンセル</button>
+        <button class="btn primary" value="save" type="submit">保存</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog class="dialog" id="ai-actual-dialog">
+    <form method="dialog">
+      <h3>着順を入力</h3>
+      <p class="muted" id="ai-actual-race"></p>
+      <label class="field"><span>1着・2着・3着 (馬番か馬名をカンマ区切り)</span><input id="ai-actual" type="text" placeholder="例: 7, 3, 12" autocomplete="off"></label>
       <div class="btn-row end"><button class="btn ghost" value="cancel" type="submit">キャンセル</button><button class="btn primary" value="save" type="submit">保存</button></div>
     </form>
   </dialog>

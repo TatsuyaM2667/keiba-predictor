@@ -29,6 +29,7 @@ import {
   setTokenProvider,
 } from "./util.js";
 import { marketProbs, kelly, coatName, simulateOrders, strategies, commentary, BET, BET_TYPES, hits, probOf, oddsFrom, modelProbs, planTickets, payoutOf, features } from "./race-model.js";
+import { initAi } from "./ai.js";
 
 // Firebase の Web SDK (公式 CDN)。/api/config に設定がある環境 (Cloudflare Pages 版) だけで読み込む
 const FIREBASE_SDK = "https://www.gstatic.com/firebasejs/13.2.0/";
@@ -1363,6 +1364,56 @@ function renderResTable(filter) {
       <td class="num">${money(e.profit.honmei)}</td><td class="num">${e.plans.at(-2).cost ? money(e.profit.app) : `<span class="muted">見送り</span>`}</td></tr>`;
     })
     .join("") || `<tr><td colspan="9" class="muted">該当するレースがありません</td></tr>`}</tbody>`;
+}
+
+/* ============================================================
+   AI 予想 (画面の中身は ai.js)
+   ============================================================ */
+init.ai = () => initAi({ state, openHorse, sendToSim: aiToSim });
+
+// AI 予想の上位の馬 (最大 18 頭) を 3D シミュレーションの出走表にする。
+// 名鑑にいる馬は能力値・適性・毛色をそのまま使い、いない馬は AI の勝率から仮の能力値を作る
+// (勝率 0% → 55、20% → 85 くらい。上限 95)。JRA の出馬表から予想したときは毛色も出馬表のものを使う。
+async function aiToSim({ picks, venue, surface, distance }) {
+  const list = picks.slice(0, 18);
+  const views = await Promise.all(
+    list.map((p) =>
+      p.libraryTitle
+        ? api(`/api/horses/detail?title=${encodeURIComponent(p.libraryTitle)}`)
+            .then((d) => d.view)
+            .catch(() => null)
+        : null,
+    ),
+  );
+  state.field = list.map((p, i) => {
+    const v = views[i];
+    if (v)
+      return {
+        key: v.horse.title,
+        title: v.horse.title,
+        name: v.horse.name,
+        coat: p.coat || v.horse.color,
+        rating: v.rating,
+        surface: v.surface,
+        bestDistance: v.bestDistance,
+        style: defaultStyle(v),
+        stamina: 0.8,
+      };
+    return {
+      key: `ai-${i}-${p.horse}`,
+      name: p.horse,
+      coat: p.coat || "鹿毛",
+      rating: Math.round(Math.min(95, 55 + (p.winProb || 0) * 1.5)),
+      style: [1, 2, 1, 2, 3, 0][i % 6],
+      stamina: 0.8,
+    };
+  });
+  presetSim({
+    course: COURSE_BY_SHORT(venue)?.id,
+    distance: distance || undefined,
+    surface: surface || undefined,
+  });
+  location.hash = "#/sim";
 }
 
 /* ============================================================

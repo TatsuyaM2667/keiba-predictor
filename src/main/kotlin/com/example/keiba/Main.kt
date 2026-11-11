@@ -1,5 +1,10 @@
 package com.example.keiba
 
+import com.example.keiba.service.AiPredictService
+import com.example.keiba.service.AiRaceInput
+import com.example.keiba.service.AiSettingsUpdate
+import com.example.keiba.service.AiApiError
+import com.example.keiba.service.LookupRequest
 import com.example.keiba.service.AuthService
 import com.example.keiba.service.RaceService
 import com.example.keiba.service.HorseView
@@ -15,6 +20,7 @@ import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.http.content.*
 import io.ktor.server.netty.*
+import io.ktor.server.plugins.origin
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.request.*
@@ -22,6 +28,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.encodeToString
 import org.slf4j.LoggerFactory
 import java.awt.Desktop
@@ -80,11 +87,13 @@ fun main(args: Array<String>) {
     val raceService = RaceService(weatherService)
     val authService = AuthService()
     val encyclopediaService = com.example.keiba.service.EncyclopediaService()
+    val aiService = AiPredictService(library, weatherService)
 
     val port = System.getenv("PORT")?.toIntOrNull() ?: 8080
-    // 0.0.0.0 = このパソコンのすべてのネットワークで待ち受ける。
-    // 自分だけで使うなら "127.0.0.1" でもよいが、同じ Wi-Fi のスマホから見られるようにこの設定にしている。
-    val host = "0.0.0.0"
+    // 127.0.0.1 = このパソコンの中からだけ接続できる (既定)。
+    // 同じ Wi-Fi のスマホからも見たいときは HOST=0.0.0.0 で起動する。
+    // そのときも AI 予想の窓口 (/api/ai/...) は API キーを使うので、このパソコンからしか使えない。
+    val host = System.getenv("HOST") ?: "127.0.0.1"
 
     println("==================================================")
     println("Keiba Vision")
@@ -146,7 +155,49 @@ fun main(args: Array<String>) {
                 }
             }
 
-            get("/api/health") { call.respond(mapOf("status" to "ok", "version" to "2.0.0")) }
+            get("/api/health") { call.respond(mapOf("status" to "ok", "version" to "2.1.0")) }
+            // Cloudflare Pages 版では Firebase の設定を返す窓口。Kotlin 版は設定なし (空) を返す
+            // (無いと画面の起動時に 404 がコンソールに出るため)。
+            get("/api/config") { call.respond(emptyMap<String, String>()) }
+
+            // AI 予想 (Gemini / Claude)。API キーを使うので、このパソコンで開いたこの画面からの要求だけ受け付ける
+            // (別のサイトの JavaScript や、同じ Wi-Fi の他の端末から呼ばれてキーを使われないように)。
+            route("/api/ai") {
+                intercept(ApplicationCallPipeline.Plugins) {
+                    if (!call.isLocalAppRequest(port)) {
+                        call.respond(HttpStatusCode.Forbidden, mapOf("error" to "AI 予想はこのパソコンで開いた画面からだけ使えます"))
+                        finish()
+                    }
+                }
+                get("settings") { call.respond(aiService.settings()) }
+                post("settings") { call.respond(aiService.updateSettings(call.receive<AiSettingsUpdate>())) }
+                get("models") {
+                    try {
+                        call.respond(aiService.models(call.request.queryParameters["provider"] ?: ""))
+                    } catch (e: AiApiError) {
+                        call.respond(HttpStatusCode.BadGateway, mapOf("error" to (e.message ?: "")))
+                    }
+                }
+                // 貼り付けた出馬表の中から、名鑑にいる馬を探す
+                post("lookup") {
+                    val req = call.receive<LookupRequest>()
+                    call.respond(aiService.lookup(req.text, req.names))
+                }
+                // provider = gemini / claude。失敗しても 200 で ok=false とエラー文を返す (画面に表示するため)
+                post("predict/{provider}") {
+                    val provider = call.parameters["provider"] ?: return@post call.respond(HttpStatusCode.BadRequest)
+                    call.respond(aiService.predict(provider, call.receive<AiRaceInput>()))
+                }
+                get("history") { call.respond(aiService.history()) }
+                post("history") {
+                    if (aiService.saveHistory(call.receive<JsonObject>())) call.respond(mapOf("status" to "saved"))
+                    else call.respond(HttpStatusCode.BadRequest)
+                }
+                delete("history/{id}") {
+                    val id = call.parameters["id"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
+                    if (aiService.deleteHistory(id)) call.respond(mapOf("status" to "deleted")) else call.respond(HttpStatusCode.NotFound)
+                }
+            }
 
             // ライブラリ (Wikipedia / Wikidata 由来): 競走馬・競走・競馬場
             get("/api/library/status") { call.respond(library.status()) }
@@ -347,6 +398,20 @@ fun main(args: Array<String>) {
 }
 
 /**
+ * このパソコンの中で開いた、このアプリ自身の画面からの要求かどうか。
+ * - 接続元がループバック (127.0.0.1 / ::1) であること
+ * - ブラウザが付ける Origin ヘッダーがあるなら、それが localhost の同じポートであること
+ *   (別のサイトのページが裏で http://localhost:8080/api/ai/... を呼ぶのを防ぐ)
+ */
+fun ApplicationCall.isLocalAppRequest(port: Int): Boolean {
+    val remote = request.origin.remoteHost
+    val loopback = remote == "localhost" || remote.startsWith("127.") || remote == "::1" || remote.startsWith("0:0:0:0:0:0:0:1")
+    val origin = request.headers[HttpHeaders.Origin] ?: return loopback
+    val uri = runCatching { URI(origin) }.getOrNull() ?: return false
+    return loopback && uri.host in setOf("localhost", "127.0.0.1", "[::1]") && uri.port == port
+}
+
+/**
  * Chimera Linux (musl libc), Arch Linux, Windows のすべてで確実にブラウザを起動するマルチフォールバック関数
  */
 // OS ごとに「既定のブラウザで URL を開く」方法が違うので、順番に試す。
@@ -402,7 +467,7 @@ fun openBrowserAcrossPlatforms(url: String) {
         if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
             Desktop.getDesktop().browse(URI(url))
         } else {
-            println("ブラウザ自動オープン: http://localhost:8080 をブラウザで開いてください。")
+            println("ブラウザ自動オープン: $url をブラウザで開いてください。")
         }
     } catch (e: Exception) {
         println("ブラウザの自動オープンをスキップしました (手動で開いてください: $url): ${e.message}")
