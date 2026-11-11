@@ -52,6 +52,48 @@ export function marketProbs(odds) {
   return { probs: inv.map(v => (sum ? v / sum : 0)), takeout: sum ? 1 - 1 / sum : null };
 }
 
+/** 馬場の表記をそろえる (出馬表の見出しには「芝 内外」なども来る)。Kotlin の RaceFeatures.normSurface と同じ */
+export const normSurface = (s) => (/ダート/.test(s || "") ? "ダート" : /障害/.test(s || "") ? "障害" : "芝");
+
+// ==================================================================================
+// 学習したモデル (Kotlin の ModelService が過去の実際のレースで最尤推定し、交差検証で選んだもの)
+// ==================================================================================
+//   勝率 pᵢ = exp(uᵢ) / Σⱼ exp(uⱼ)   (softmax。合計は必ず 1)
+//   uᵢ = α · log(市場の確率 qᵢ) + Σₖ βₖ · (xᵢₖ − 平均ₖ) / 標準偏差ₖ
+// 特徴量 x の並びと作り方は Kotlin (RaceFeatures.vector) と完全に同じ。一致は Kotlin のテストで確かめる。
+// 交差検証で市場より良いモデルがなければ α = 1・β = 0 で、勝率 = 市場の確率になる。
+export const featureVector = (f, pace, waku) => [f.form, f.distFit, f.surfFit < 0 ? 1 : 0, f.runs === 0 ? 1 : 0, (pace.value - 1) * (f.style - 1.5), waku ?? 4.5];
+/** 学習したモデルの勝率。オッズがそろっていなければ null (呼び出し側は手動モデルを使う) */
+export function fittedProbs(params, X, q) {
+  if (!params || !q?.length || q.some((v) => !(v > 0))) return null;
+  const u = X.map((x, i) => params.alpha * Math.log(q[i]) + x.reduce((s, v, j) => s + (params.beta[j] * (v - params.mean[j])) / params.sd[j], 0));
+  const m = Math.max(...u), e = u.map((v) => Math.exp(v - m)), s = e.reduce((a, b) => a + b, 0);
+  return e.map((v) => v / s);
+}
+
+/**
+ * 勝率 p のモデル (softmax = Plackett–Luce モデル) で、1〜3 着を runs 回くじ引きする。
+ * 各馬に「log pᵢ + Gumbel 分布の乱数」を付けて大きい順に並べると、1 着になる確率がちょうど pᵢ になり、
+ * 2 着・3 着も同じモデル (Harville の式) どおりになる (Gumbel-max の性質)。戻り値の形は simulateOrders と同じ。
+ */
+export function sampleOrders(p, runs = 20000, seed = 20261109) {
+  let s = seed >>> 0 || 1;
+  const rnd = () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return (s + 0.5) / 4294967296; }; // 0 と 1 を含まない
+  const lp = p.map((v) => Math.log(Math.max(v, 1e-12)));
+  const out = new Uint8Array(runs * 3);
+  for (let k = 0; k < runs; k++) {
+    let a = -1, b = -1, c = -1, sa = -Infinity, sb = -Infinity, sc = -Infinity;
+    for (let i = 0; i < lp.length; i++) {
+      const v = lp[i] - Math.log(-Math.log(rnd()));
+      if (v > sa) { c = b; sc = sb; b = a; sb = sa; a = i; sa = v; }
+      else if (v > sb) { c = b; sc = sb; b = i; sb = v; }
+      else if (v > sc) { c = i; sc = v; }
+    }
+    out[k * 3] = a; out[k * 3 + 1] = b; out[k * 3 + 2] = c;
+  }
+  return out;
+}
+
 /** ケリー基準で賭ける割合。期待値 pO ≤ 1 なら 0 (賭けない)。fraction は安全のための割引 */
 export const kelly = (p, odds, fraction = 0.25) => (odds > 1 && p * odds > 1 ? fraction * (p * odds - 1) / (odds - 1) : 0);
 
@@ -184,7 +226,7 @@ export function strategies(orders, n, order, q, winOdds) {
  * 予想の見解 (なぜその馬を推すか) を、特徴量・勝率・市場の確率から組み立てる。
  * horses[i] = { name, odds, popularity }、f[i] = features() の戻り値、p / q = 予想と市場の勝率 (0〜1)。
  */
-export function commentary({ horses, f, p, q, pace, race }) {
+export function commentary({ horses, f, p, q, pace, race, pModel = null }) {
   const n = horses.length;
   const rank = (arr, i) => 1 + arr.filter((v) => v > arr[i]).length;
   const forms = f.map((v) => v.form);
@@ -201,11 +243,13 @@ export function commentary({ horses, f, p, q, pace, race }) {
     else if (v.runs) r.push("距離・馬場の経験は十分");
     if (favored.includes(v.style)) r.push(`${STYLE_NAMES[v.style]}の馬で、${pace.name}なら展開が向く`);
     else if (favored.length) r.push(`${STYLE_NAMES[v.style]}の馬で、${pace.name}の展開は向かない`);
+    // pModel があるとき: 表示の勝率は市場をもとにした採用モデルなので、市場との比較は「能力モデルの意見」として書く
+    const pm = pModel ?? p, who = pModel ? "能力モデル (手動) の勝率" : "予想勝率";
     if (q[i]) {
-      const ratio = p[i] / q[i];
-      if (ratio >= 1.25) r.push(`予想勝率 ${pct(p[i])} は市場 (${pct(q[i])}) より高く、オッズ ${horses[i].odds}倍は割安`);
-      else if (ratio <= 0.8) r.push(`予想勝率 ${pct(p[i])} は市場 (${pct(q[i])}) より低く、人気ほどの妙味はない`);
-      else r.push(`予想勝率 ${pct(p[i])} は市場 (${pct(q[i])}) とほぼ同じ`);
+      const ratio = pm[i] / q[i];
+      if (ratio >= 1.25) r.push(`${who} ${pct(pm[i])} は市場 (${pct(q[i])}) より高い${pModel ? "" : `。オッズ ${horses[i].odds}倍は割安`}`);
+      else if (ratio <= 0.8) r.push(`${who} ${pct(pm[i])} は市場 (${pct(q[i])}) より低い`);
+      else r.push(`${who} ${pct(pm[i])} は市場 (${pct(q[i])}) とほぼ同じ`);
     }
     return r;
   };
@@ -214,8 +258,8 @@ export function commentary({ horses, f, p, q, pace, race }) {
     pace: `逃げ ${nige} 頭・先行 ${senko} 頭で${pace.name}の予想。${favored.length ? `${favored.map((s) => STYLE_NAMES[s]).join("・")}の馬に有利な流れ` : "脚質による有利不利は小さい"}です。`,
     picks: order.slice(0, Math.min(5, n)).map((i, k) => ({ index: i, mark: marks[k], reasons: reasons(i) })),
     // 人気 (3 番人気以内) なのに、予想勝率が市場の 7 割に届かない馬
-    danger: horses.map((h, i) => i).filter((i) => horses[i].popularity && horses[i].popularity <= 3 && q[i] && p[i] / q[i] < 0.7)
-      .map((i) => ({ index: i, text: `${horses[i].popularity}番人気ですが、予想勝率 ${pct(p[i])} は市場 ${pct(q[i])} を大きく下回ります` })),
+    danger: horses.map((h, i) => i).filter((i) => horses[i].popularity && horses[i].popularity <= 3 && q[i] && (pModel ?? p)[i] / q[i] < 0.7)
+      .map((i) => ({ index: i, text: `${horses[i].popularity}番人気ですが、${pModel ? "能力モデル (手動) の勝率" : "予想勝率"} ${pct((pModel ?? p)[i])} は市場 ${pct(q[i])} を大きく下回ります` })),
   };
 }
 

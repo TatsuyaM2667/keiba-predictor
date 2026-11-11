@@ -55,6 +55,11 @@ assert(r.body[0].license, "写真のライセンス");
 
 r = await call("/api/races");
 assert.equal(r.body.length, 3);
+r = await call("/api/model/params");
+assert(["market", "market_power", "market_features"].includes(r.body.selected), "採用モデル");
+assert.equal(r.body.beta.length, r.body.features.length);
+r = await call("/api/races/arima-2026/analysis");
+assert(Math.abs(r.body.predictions.reduce((s, p) => s + p.winProbability, 0) - 100) < 0.5, "サンプルの勝率の合計は 100%");
 r = await call("/api/races/arima-2026/analysis");
 assert(r.body.predictions.length > 0);
 assert.equal((await call("/api/races/nope/analysis")).status, 404);

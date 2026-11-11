@@ -344,6 +344,8 @@ export const onRequest = async ({ request, env, params }: Ctx): Promise<Response
       case "encyclopedia/breeds": return json(await d("breeds"), 200, 3600);
       case "encyclopedia/coats": return json(await d("coats"), 200, 3600);
       case "races": return json(await d("races"), 200, 3600);
+      // 採用した予想モデル (ビルド時に Kotlin の ModelService が過去のレースで学習・交差検証して書き出したもの)
+      case "model/params": return json(await d("model-params"), 200, 3600);
     }
     const m = path.match(/^races\/([\w-]+)(\/analysis)?$/);
     if (m) {

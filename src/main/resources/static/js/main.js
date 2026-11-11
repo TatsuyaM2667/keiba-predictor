@@ -28,7 +28,7 @@ import {
   seeded,
   setTokenProvider,
 } from "./util.js";
-import { marketProbs, kelly, coatName, simulateOrders, strategies, commentary, BET, BET_TYPES, hits, probOf, oddsFrom, modelProbs, planTickets, payoutOf, features } from "./race-model.js";
+import { marketProbs, kelly, coatName, simulateOrders, strategies, commentary, BET, BET_TYPES, hits, probOf, oddsFrom, modelProbs, planTickets, payoutOf, features, normSurface, featureVector, fittedProbs, sampleOrders } from "./race-model.js";
 
 // Firebase の Web SDK (公式 CDN)。/api/config に設定がある環境 (Cloudflare Pages 版) だけで読み込む
 const FIREBASE_SDK = "https://www.gstatic.com/firebasejs/13.2.0/";
@@ -713,7 +713,7 @@ init.races = async () => {
   $("#note-open").addEventListener("click", openNote);
   const schedule = api("/api/live/schedule").catch(() => null);
   renderSchedule(schedule);
-  const live = await api("/api/live/races").catch(() => null);
+  const [live] = await Promise.all([api("/api/live/races").catch(() => null), loadModelParams()]);
   if (live?.races?.length) return setupLive(live);
   if (live) return showNextMeeting(await schedule);
   // サンプルの出馬表 (自動取得の仕組みがない環境。ローカル版で Cloudflare 版に接続できないときなど)
@@ -732,6 +732,13 @@ init.races = async () => {
   );
   if (races[0]) loadRace(races[0].id);
 };
+
+/* ---------- 採用した予想モデル (Kotlin の ModelService が過去のレースで学習・交差検証して選んだもの) ---------- */
+async function loadModelParams() {
+  state.modelParams ??= await api("/api/model/params").catch(() => null);
+  return state.modelParams;
+}
+const MODEL_LABEL = { market: "市場 (単勝オッズ)", market_power: "市場の補正", market_features: "市場 + 特徴量", hand: "能力モデル (手動)" };
 
 /* ---------- JRA の実際のレース (keiba-vision-sync Worker が自動で取り込んだもの) ---------- */
 const WEEK = ["日", "月", "火", "水", "木", "金", "土"];
@@ -861,8 +868,9 @@ function renderOutlook(a) {
   if (box.hidden) return;
   const H = a.race.horses;
   const p = a.predictions.map((x) => x.winProbability / 100);
-  const cm = commentary({ horses: H, f: a.f, p, q: a.market, pace: { value: a.paceValue, name: a.paceForecast }, race: a.cond });
-  $("#outlook-meta").textContent = a.done ? "発走済み (振り返り)" : "";
+  const cm = commentary({ horses: H, f: a.f, p, q: a.market, pModel: a.adopted === "hand" ? null : a.handP, pace: { value: a.paceValue, name: a.paceForecast }, race: a.cond });
+  const mp = state.modelParams;
+  $("#outlook-meta").textContent = `${a.done ? "発走済み (振り返り) ・ " : ""}勝率: ${MODEL_LABEL[a.adopted] ?? a.adopted}${a.adopted !== "hand" && mp ? ` (過去 ${mp.races} レースの交差検証でいちばん正確)` : " (オッズの発表前)"}`;
   $("#outlook-pace").textContent = cm.pace;
   $("#outlook-picks").innerHTML = cm.picks
     .map(({ index, mark, reasons }) => {
@@ -900,9 +908,14 @@ function renderOutlook(a) {
 // 勝率は Zig のモンテカルロ (想定ペースで 100,000 回) で出し、印と買い目をそこから決める。
 function liveAnalysis(r, runners) {
   const hd = r.card.header;
-  const cond = { surface: hd.surface || r.surface, distance: hd.distance || r.distance };
+  const cond = { surface: normSurface(hd.surface || r.surface), distance: hd.distance || r.distance };
   const z = state.engines.zig;
-  const { f, pace, p: winP } = modelProbs(z, runners, cond);
+  // 能力モデル (手で決めた係数・Zig) の勝率は「モデルの意見」として残し、表示する勝率は採用モデルにする。
+  // 採用モデルは市場のオッズを使うので、オッズの発表前は能力モデルの勝率を使う
+  const { f, pace, p: handP } = modelProbs(z, runners, cond);
+  const market = marketProbs(runners.map((x) => x.odds || 0));
+  const fitted = fittedProbs(state.modelParams, f.map((v, i) => featureVector(v, pace, runners[i].waku)), market.probs);
+  const winP = fitted ?? handP;
   const horses = runners.map((x, i) => ({
     horseNumber: x.num,
     postPosition: x.waku,
@@ -923,8 +936,8 @@ function liveAnalysis(r, runners) {
     past: x.past,
   }));
   const win = winP.map((v) => v * 100);
-  // 組み合わせ馬券 (馬連・3連単など) の確率用に、毎回の 1〜3 着も記録する (2 万回)
-  const orders = z ? simulateOrders(z, Math.min(18, horses.length), pace.value, 20000) : null;
+  // 組み合わせ馬券 (馬連・3連単など) の確率用に、毎回の 1〜3 着も記録する (2 万回)。勝率と同じモデルでくじ引きする
+  const orders = fitted ? sampleOrders(fitted, 20000) : z ? simulateOrders(z, Math.min(18, horses.length), pace.value, 20000) : null;
   const max = Math.max(...win, 1e-9);
   const order = win.map((w, i) => i).sort((i, j) => win[j] - win[i]);
   const marks = ["◎", "◯", "▲", "△", "△"];
@@ -934,10 +947,11 @@ function liveAnalysis(r, runners) {
     totalScore: Math.round((win[i] / max) * 100),
     mark: marks[order.indexOf(i)] || "",
   }));
-  const market = marketProbs(horses.map((h) => h.odds || 0));
   return {
     live: true,
     orders,
+    handP,
+    adopted: fitted ? state.modelParams.selected : "hand",
     f,
     cond,
     hasOdds: horses.some((h) => h.odds),
@@ -1055,7 +1069,7 @@ async function loadRace(id) {
   $("#bets").innerHTML = a.betRecommendations
     .map(
       (b) =>
-        `<div class="bet"><span class="type">${esc(b.betType)}</span><span class="combo">${esc(b.combination)}</span><span class="alloc">${b.allocationPercent}%</span><p>${esc(b.reason)} ・ 想定 ${b.oddsEstimate}倍</p></div>`,
+        `<div class="bet"><span class="type">${esc(b.betType)}</span><span class="combo">${esc(b.combination)}</span><span class="alloc">${b.allocationPercent}%</span><p>${esc(b.reason)}${b.oddsEstimate > 0 ? ` ・ ${b.oddsEstimate}倍` : ""}</p></div>`,
     )
     .join("");
   renderMonteCarlo();
@@ -1222,6 +1236,7 @@ init.results = async () => {
     return;
   }
   $("#res-stats").innerHTML = `<p class="muted">${data.length} レースを予想し直しています</p>`;
+  await loadModelParams();
   const z = state.engines.zig;
   const rows = [];
   for (let k = 0; k < data.length; k++) {
@@ -1245,8 +1260,10 @@ function evalRace(z, r) {
   const out = new Set(res.order.filter((o) => /取消|除外/.test(o.status)).map((o) => o.num));
   const runners = card.runners.filter((x) => !x.scratched && x.num && !out.has(x.num));
   if (runners.length < 4 || !res.payouts?.win?.length) return null;
-  const cond = { surface: card.header.surface, distance: card.header.distance };
-  const { p } = modelProbs(z, runners, cond, 20000);
+  const cond = { surface: normSurface(card.header.surface), distance: card.header.distance };
+  const { f, pace, p: handP } = modelProbs(z, runners, cond, 20000);
+  const q0 = marketProbs(runners.map((x) => x.odds || 0)).probs;
+  const p = fittedProbs(state.modelParams, f.map((v, i) => featureVector(v, pace, runners[i].waku)), q0) ?? handP;
   const order = p.map((_, i) => i).sort((i, j) => p[j] - p[i]);
   const num = (i) => runners[i].num;
   const placeOf = new Map(res.order.map((o) => [o.num, o.place]));
@@ -1267,7 +1284,7 @@ function evalRace(z, r) {
   return {
     r, runners, order, p, placeOf, fav, plans,
     profit: { honmei: plans[0].back - plans[0].cost, app: plans.at(-2).back - plans.at(-2).cost, fav: plans.at(-1).back - plans.at(-1).cost },
-    winner: w, llModel: w >= 0 ? ll(p[w]) : null, llMarket: w >= 0 ? ll(q[w]) : null,
+    winner: w, llModel: w >= 0 ? ll(p[w]) : null, llHand: w >= 0 ? ll(handP[w]) : null, llMarket: w >= 0 ? ll(q[w]) : null,
   };
 }
 
@@ -1284,9 +1301,10 @@ function renderResults() {
     tile("検証したレース", `${n}`, `${esc(rows[0].r.date)} 〜 ${esc(rows[n - 1].r.date)}`),
     tile("◎ の勝率", pct(rate((e) => at(e, e.order[0]) === 1)), `1番人気は ${pct(rate((e) => at(e, e.fav) === 1))}`),
     tile("◎ の 3 着以内率", pct(rate((e) => (at(e, e.order[0]) ?? 99) <= 3)), `1番人気は ${pct(rate((e) => (at(e, e.fav) ?? 99) <= 3))}`),
-    tile("予想の精度 (対数損失)", mean("llModel").toFixed(3), `市場 (オッズ) は ${mean("llMarket").toFixed(3)}。小さいほど正確`),
+    tile("予想の精度 (対数損失)", mean("llModel").toFixed(3), `能力モデル (手動) は ${mean("llHand").toFixed(3)}、市場は ${mean("llMarket").toFixed(3)}。小さいほど正確`),
   ].join("");
   $("#res-count").textContent = `${n} レース`;
+  renderModelReport();
   // 買い方ごとの合計
   const names = rows[0].plans.map((x) => x.name);
   const sums = names.map((name, k) => {
@@ -1300,6 +1318,18 @@ function renderResults() {
     .join("")}</tbody>`;
   renderResChart(rows);
   renderResTable("all");
+}
+
+// Kotlin の ModelService が出した、モデルどうしの比較 (1 レースずつ外して学習し、外したレースで当てる交差検証)
+function renderModelReport() {
+  const mp = state.modelParams;
+  const el = $("#res-models");
+  if (!mp?.report?.length) { el.innerHTML = `<p class="muted">モデルの比較はまだありません (ローカル版は起動後に学習します)</p>`; return; }
+  el.innerHTML = `<p class="note">${icon("info")}<span>${esc(mp.note)} (過去 ${mp.races} レース・${mp.runners} 頭、${esc(mp.fittedAt)} 学習)</span></p>
+    <div class="table-wrap"><table class="table"><thead><tr><th>モデル</th><th>対数損失</th><th>市場との差 (± 標準誤差)</th></tr></thead><tbody>${mp.report
+      .map((r) => `<tr class="${r.name === mp.selected ? "best" : ""}"><td>${r.name === mp.selected ? "<b>採用</b> " : ""}${esc(r.label)}</td><td class="num">${r.logLoss.toFixed(4)}</td>
+        <td class="num">${r.vsMarket == null ? "基準" : `<span class="${r.vsMarket < -2 * r.vsMarketSe ? "plus" : r.vsMarket > 2 * r.vsMarketSe ? "minus" : ""}">${r.vsMarket >= 0 ? "+" : ""}${r.vsMarket.toFixed(4)}</span> ± ${r.vsMarketSe.toFixed(4)}`}</td></tr>`)
+      .join("")}</tbody></table></div>`;
 }
 
 // 累積収支の折れ線 (3 本)。凡例と線の端のラベルで見分けられるようにし、ホバーで各レースの値を出す。

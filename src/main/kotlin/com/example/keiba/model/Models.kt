@@ -69,16 +69,16 @@ data class PredictionScore(
     val horseNumber: Int,
     val horseName: String,
     val mark: String,          // ◎, ◯, ▲, △, ☆
-    val totalScore: Double,     // 総合スコア (0.0 - 100.0)
-    val speedScore: Double,     // スピードスコア
-    val paceAdvantage: Double,  // 展開適合度
-    val pedigreeScore: Double,  // 血統適性
-    val jockeyScore: Double,    // 騎手相性
-    val conditionScore: Double, // 馬場適性
-    val winProbability: Double, // 予測勝率 (%)
-    val placeProbability: Double, // 予測複勝率 (%)
-    val expectedValueScore: Double, // オッズ妙味度 (回収期待値指数)
-    val comments: String        // AI寸評
+    val totalScore: Double,     // 評価 (0〜100)。モデルの意見 (重みは手で決めた値)
+    val speedScore: Double,     // 能力 (スピード指数を 0〜100 に)
+    val paceAdvantage: Double,  // 展開との相性
+    val pedigreeScore: Double,  // 血統 (名鑑の産駒成績から)
+    val jockeyScore: Double,    // 騎手 (勝率から)
+    val formScore: Double,      // 近走 (前走の着順から)
+    val winProbability: Double, // 勝率 (%)。全頭の合計は 100
+    val placeProbability: Double, // 3 着以内に入る確率 (%)。全頭の合計は 300
+    val expectedValueScore: Double, // 100 円買ったときに戻る額の期待値 (円)。100 を超えれば得
+    val comments: String        // 短評
 )
 
 @Serializable

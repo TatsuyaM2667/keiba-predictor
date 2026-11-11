@@ -4,6 +4,9 @@ import com.example.keiba.service.AuthService
 import com.example.keiba.service.RaceService
 import com.example.keiba.service.HorseView
 import com.example.keiba.service.LibraryService
+import com.example.keiba.service.ModelParams
+import com.example.keiba.service.ModelService
+import com.example.keiba.service.PredictorEngine
 import com.example.keiba.service.WeatherService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -29,6 +32,8 @@ import java.net.URI
 
 private const val LIVE_ORIGIN = "https://keiba-vision.pages.dev"
 private val liveHttp = java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(10)).build()
+// 予想モデルの学習データ: Worker が集めた過去の実際のレース (結果 + レース前の出馬表)
+private const val RESULTS_URL = "$LIVE_ORIGIN/api/live/results?limit=500"
 
 @Serializable
 // ==================================================================================
@@ -74,10 +79,29 @@ fun main(args: Array<String>) {
         exportStatic(java.io.File(args.getOrNull(1) ?: "pages/dist/data"))
         return
     }
+    // `--fit [file]`: 過去の実際のレースで予想モデルを学習・評価し、結果を表示して file (同梱データ) に書いて終了
+    if (args.firstOrNull() == "--fit") {
+        val p = ModelService(RESULTS_URL).refit()
+        val out = java.io.File(args.getOrNull(1) ?: "src/main/resources/data/model-params.json")
+        out.writeText(Json { prettyPrint = true; encodeDefaults = true }.encodeToString(p) + "\n")
+        printModelReport(p)
+        println("書き出し: ${out.absolutePath}")
+        return
+    }
 
     val weatherService = WeatherService()
     val library = LibraryService().also { it.refreshIfStale() }
-    val raceService = RaceService(weatherService)
+    // 予想モデル: 同梱の学習結果で始め、起動時と 12 時間ごとに最新の過去レースで学習し直す (失敗しても前の結果のまま)
+    val modelService = ModelService(RESULTS_URL)
+    kotlin.concurrent.thread(isDaemon = true, name = "model-refit") {
+        while (true) {
+            runCatching { modelService.refit() }
+                .onSuccess { println("予想モデルを学習しました: ${it.races} レース、採用 = ${it.selected}") }
+                .onFailure { println("予想モデルの学習をスキップしました (前の結果を使います): ${it.message}") }
+            Thread.sleep(12 * 3600_000L)
+        }
+    }
+    val raceService = RaceService(weatherService, PredictorEngine(sireStatsOf(library)) { modelService.params.alpha })
     val authService = AuthService()
     val encyclopediaService = com.example.keiba.service.EncyclopediaService()
 
@@ -177,6 +201,8 @@ fun main(args: Array<String>) {
                 ))
             }
             get("/api/courses") { call.respond(library.courses()) }
+            // 採用した予想モデル (画面の race-model.js がこれで勝率を出す) と、交差検証の成績
+            get("/api/model/params") { call.respond(modelService.params) }
             // 25 場の座標を Open-Meteo にまとめて渡し、現在の天気を 1 回のリクエストで取る。
             // 座標が分からない競馬場は除外する。
             get("/api/weather") {
@@ -413,11 +439,14 @@ fun openBrowserAcrossPlatforms(url: String) {
 fun exportStatic(dir: java.io.File) = runBlocking {
     val json = Json { encodeDefaults = true }
     val library = LibraryService()
-    val races = RaceService(WeatherService())
+    // 予想モデルは書き出すたびに学習し直す (取れなければ同梱の学習結果)
+    val model = ModelService(RESULTS_URL).also { m -> runCatching { m.refit() }.onFailure { println("予想モデルの学習をスキップ: ${it.message}") } }
+    val races = RaceService(WeatherService(), PredictorEngine(sireStatsOf(library)) { model.params.alpha })
     val encyclopedia = com.example.keiba.service.EncyclopediaService()
     dir.mkdirs()
     fun write(name: String, text: String) = java.io.File(dir, name).writeText(text)
     write("horses.json", json.encodeToString(library.allHorses()))
+    write("model-params.json", json.encodeToString(model.params))
     write("races-catalog.json", json.encodeToString(library.allRaces()))
     write("courses.json", json.encodeToString(library.courses()))
     write("status.json", json.encodeToString(library.status()))
@@ -429,4 +458,36 @@ fun exportStatic(dir: java.io.File) = runBlocking {
     // 予想は書き出した時点の天気で計算する
     sample.forEach { r -> races.getRaceAnalysis(r.id)?.let { write("analysis-${r.id}.json", json.encodeToString(it)) } }
     println("書き出し完了: ${dir.absolutePath} (${dir.list()?.size} ファイル)")
+}
+
+/**
+ * 名鑑から、種牡馬ごとの産駒成績を作る (予想の「血統」に使う)。
+ * 対象は重賞を勝った産駒。芝で勝った割合 (芝・ダート両方なら 0.5) と、勝った重賞の平均距離の平均。
+ * 名鑑は裏で更新されることがあるので、中身が変わったら作り直す。
+ */
+fun sireStatsOf(library: LibraryService): (String) -> PredictorEngine.SireStat? {
+    var cache: Pair<List<HorseView>, Map<String, PredictorEngine.SireStat>>? = null
+    return { sire ->
+        val views = library.allHorses()
+        val map = cache?.takeIf { it.first === views }?.second ?: views
+            .filter { it.horse.sire.isNotBlank() && it.surface != "不明" }
+            .groupBy { it.horse.sire }
+            .mapValues { (_, list) ->
+                val turf = list.sumOf { v -> if (v.surface == "芝") 1.0 else if ("芝" in v.surface) 0.5 else 0.0 }
+                PredictorEngine.SireStat(list.size, turf / list.size, list.mapNotNull { it.bestDistance }.takeIf { it.isNotEmpty() }?.average())
+            }
+            .also { cache = views to it }
+        map[sire]
+    }
+}
+
+/** 学習結果を表で表示する (--fit) */
+fun printModelReport(p: ModelParams) {
+    println("学習に使ったレース: ${p.races} (出走 ${p.runners} 頭)")
+    println("対数損失 (小さいほど正確)。「市場との差」が −2×標準誤差 より小さければ、市場よりはっきり良い")
+    for (r in p.report) {
+        val diff = r.vsMarket?.let { "市場との差 %+.4f ± %.4f".format(it, r.vsMarketSe) } ?: ""
+        println("  %-44s %.4f  %s".format(r.label, r.logLoss, diff))
+    }
+    println("採用: ${p.selected}  (α = %.3f)  ${p.note}".format(p.alpha))
 }

@@ -1,283 +1,164 @@
 package com.example.keiba.service
 
 import com.example.keiba.model.*
+import kotlin.math.abs
 import kotlin.math.max
-import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 // ==================================================================================
-// PredictorEngine — サンプル出馬表から「印」と「買い目」を作る予想ロジック
+// PredictorEngine — サンプル出馬表 (有馬記念など 3 レース) の予想
 // ==================================================================================
-// 流れ: ペース予想 → 各馬の総合スコア → スコア順に印 (◎◯▲△☆) → 印から買い目
-// 各要素の重み (0.35 など) は経験則で決めた値で、統計的に最適化したものではない。
-class PredictorEngine {
+// 2 つの数を、役割を分けて出す。
+//   評価 (totalScore, 0〜100)
+//     能力・近走・展開・調教・騎手・血統を 0〜100 にそろえた加重平均。「モデルの意見」。
+//     サンプルには結果がないので、重みは手で決めた値 (学習できない)。
+//   勝率 (winProbability, %)
+//     いちばん正確な見積もり。過去の実際のレースで確かめると、今は「市場 (単勝オッズ)」がどのモデルより正確
+//     (ModelService の交差検証)。そこで qᵢ = (1/オッズᵢ) / Σ(1/オッズ) を、学習した補正 α で qᵢ^α として使う。
+//     確率なので合計は必ず 100%。
+// 印は勝率の順。☆ は「評価の順位が、人気の順位より 3 つ以上高い馬」(モデルが市場と意見の違う馬)。
+// 買い目は、勝率 × オッズ (期待値) が 1 を超える単勝だけをケリー基準の 1/4 で配分し、なければ「見送り」。
+class PredictorEngine(
+    private val sireStats: (String) -> SireStat? = { null },
+    private val marketAlpha: () -> Double = { 1.0 },
+) {
+    /** 名鑑から作った、ある種牡馬の産駒の成績 (重賞を勝った産駒の頭数・芝で勝った割合・平均距離) */
+    data class SireStat(val offspring: Int, val turfShare: Double, val meanDistance: Double?)
 
-    // 1 レース分の予想をまとめて作る。RaceService.getRaceAnalysis() から呼ばれる。
     fun analyzeRace(race: Race): RaceAnalysis {
         val paceForecast = analyzePace(race.horses)
         val paceComment = when (paceForecast) {
-            "ハイペース" -> "逃げ馬が多く前が激化する展開。直線での差し・追込馬の台頭に警戒が必要です。"
-            "スローペース" -> "逃げ馬が単騎で楽に行けそうな流れ。前残りの展開が濃厚で先行勢が有利です。"
-            else -> "平均的な淀みのない流れ。各馬の実力とコース適性が素直に反映されやすい展開です。"
+            "ハイペース" -> "逃げ・先行が多く、前が苦しくなる展開。差し・追込に向く流れです。"
+            "スローペース" -> "逃げ馬が楽に行けそうな流れ。前に行ける馬が有利です。"
+            else -> "平均的な流れ。脚質による有利不利は小さく、能力が素直に出やすい展開です。"
         }
+        val scores = race.horses.map { scoreOf(it, race, paceForecast) }
+        val p = winProbabilities(race.horses.map { it.odds }, marketAlpha())
+        val place = top3Probabilities(p)
 
-        // 各馬のスコアリング
-        val rawScores = race.horses.map { horse ->
-            calculateHorseScore(horse, race, paceForecast)
-        }
+        // 印は勝率の順。☆ は評価の順位が人気 (勝率) の順位より 3 つ以上高い馬のうち、いちばん差の大きい馬
+        val byP = p.indices.sortedByDescending { p[it] }
+        val byScore = scores.indices.sortedByDescending { scores[it].total }
+        val marks = arrayOfNulls<String>(p.size)
+        listOf("◎", "◯", "▲", "△", "△").forEachIndexed { k, m -> byP.getOrNull(k)?.let { marks[it] = m } }
+        p.indices.filter { marks[it] == null }
+            .map { it to byP.indexOf(it) - byScore.indexOf(it) }
+            .filter { it.second >= 3 }
+            .maxByOrNull { it.second }
+            ?.let { marks[it.first] = "☆" }
 
-        // スコア順にソート
-        val sortedScores = rawScores.sortedByDescending { it.totalScore }
+        val predictions = race.horses.mapIndexed { i, h ->
+            val s = scores[i]
+            PredictionScore(
+                horseNumber = h.horseNumber,
+                horseName = h.name,
+                mark = marks[i] ?: "",
+                totalScore = r1(s.total),
+                speedScore = r1(s.speed),
+                paceAdvantage = r1(s.pace),
+                pedigreeScore = r1(s.pedigree),
+                jockeyScore = r1(s.jockey),
+                formScore = r1(s.form),
+                winProbability = r1(p[i] * 100),
+                placeProbability = r1(place[i] * 100),
+                expectedValueScore = r1(p[i] * h.odds * 100), // 100 円買ったときに戻る額の期待値 (円)
+                comments = comment(h, s, marks[i]),
+            )
+        }.sortedByDescending { it.winProbability }
 
-        // 印 (◎, ◯, ▲, △, ☆) の割り当て
-        // ☆ (大穴) はオッズ8倍以上で期待値スコアが高い馬から選出
-        var assignedAna = false
-        val predictions = sortedScores.mapIndexed { index, score ->
-            val mark = when {
-                index == 0 -> "◎"
-                index == 1 -> "◯"
-                index == 2 -> "▲"
-                index in 3..4 -> "△"
-                !assignedAna && score.expectedValueScore >= 75.0 && race.horses.first { it.horseNumber == score.horseNumber }.odds >= 8.0 -> {
-                    assignedAna = true
-                    "☆"
-                }
-                index == 5 && !assignedAna -> {
-                    assignedAna = true
-                    "☆"
-                }
-                else -> ""
-            }
-            score.copy(mark = mark)
-        }
-
-        // 推奨買い目の生成
-        val recommendations = generateBetRecommendations(race, predictions)
-
-        return RaceAnalysis(
-            race = race,
-            predictions = predictions,
-            betRecommendations = recommendations,
-            paceForecast = paceForecast,
-            paceComment = paceComment
-        )
+        return RaceAnalysis(race, predictions, recommendations(race, p), paceForecast, paceComment)
     }
 
-    // 逃げ・先行の頭数からペースを予想する。
-    // 逃げ馬が 2 頭以上いると先頭争いで速くなる (ハイ)、逃げ馬がいない/少ないと遅くなる (スロー)。
+    // 逃げ・先行の頭数からペースを予想する (画面の race-model.js の paceOf、ModelService.pace と同じ規則)
     private fun analyzePace(horses: List<Horse>): String {
-        val nigeCount = horses.count { it.runningStyle == RunningStyle.NIGE }
-        val senkoCount = horses.count { it.runningStyle == RunningStyle.SENKO }
-
+        val nige = horses.count { it.runningStyle == RunningStyle.NIGE }
+        val senko = horses.count { it.runningStyle == RunningStyle.SENKO }
         return when {
-            nigeCount >= 2 || (nigeCount == 1 && senkoCount >= 5) -> "ハイペース"
-            nigeCount == 0 || (nigeCount == 1 && senkoCount <= 2) -> "スローペース"
+            nige >= 2 || (nige == 1 && senko >= 5) -> "ハイペース"
+            nige == 0 || (nige == 1 && senko <= 2) -> "スローペース"
             else -> "ミドルペース"
         }
     }
 
-    // 1 頭の総合スコア (15〜99.5) と、勝率・複勝率・期待値の目安を計算する。
-    // すべての要素を 0〜100 の点数に揃えてから、重みを掛けて足し合わせる (加重平均)。
-    private fun calculateHorseScore(horse: Horse, race: Race, paceForecast: String): PredictionScore {
-        // 1. スピードスコア (60-120 -> 0-100に正規化)
-        val speedScore = ((horse.speedIndex - 60.0) / 60.0 * 100.0).coerceIn(10.0, 98.0)
-
-        // 2. 展開適合度 (Pace Advantage)
-        val paceAdvantage = when (paceForecast) {
-            "ハイペース" -> when (horse.runningStyle) {
-                RunningStyle.SASHI -> 92.0
-                RunningStyle.OIKOMI -> 88.0
-                RunningStyle.SENKO -> 65.0
-                RunningStyle.NIGE -> 48.0
-            }
-            "スローペース" -> when (horse.runningStyle) {
-                RunningStyle.NIGE -> 95.0
-                RunningStyle.SENKO -> 88.0
-                RunningStyle.SASHI -> 62.0
-                RunningStyle.OIKOMI -> 45.0
-            }
-            else -> when (horse.runningStyle) { // ミドルペース
-                RunningStyle.SENKO -> 88.0
-                RunningStyle.SASHI -> 86.0
-                RunningStyle.NIGE -> 75.0
-                RunningStyle.OIKOMI -> 70.0
-            }
-        }
-
-        // 3. 血統・距離適性 (コース距離・馬場と血統の相性)
-        var pedigreeScore = 75.0
-        val sireLower = horse.sire.lowercase()
-        if (sireLower.contains("キタサンブラック") || sireLower.contains("ディープインパクト") || sireLower.contains("ハーツクライ")) {
-            pedigreeScore += 15.0
-        } else if (sireLower.contains("エピファネイア") || sireLower.contains("ドゥラメンテ") || sireLower.contains("ロードカナロア")) {
-            pedigreeScore += 12.0
-        } else if (sireLower.contains("ゴールドシップ") || sireLower.contains("オルフェーヴル")) {
-            if (race.condition != TrackCondition.FIRM) pedigreeScore += 18.0 else pedigreeScore += 8.0
-        }
-
-        // 4. 騎手相性スコア
-        val jockeyScore = (horse.jockeyWinRate * 400.0).coerceIn(40.0, 98.0)
-
-        // 5. 馬場状態適性 (Track Condition)
-        var conditionScore = 80.0
-        when (race.condition) {
-            TrackCondition.FIRM -> conditionScore = 85.0
-            TrackCondition.GOOD -> conditionScore = 82.0
-            TrackCondition.YIELDING, TrackCondition.SOFT -> {
-                // 重馬場時はパワー系・大型馬有利
-                if (horse.horseWeight >= 490) conditionScore += 10.0
-                else conditionScore -= 8.0
-            }
-        }
-
-        // 枠順補正 (中山などの内枠有利コース)
-        var postBias = 0.0
-        if (race.distanceMeters >= 2000) {
-            if (horse.postPosition in 1..3) postBias += 4.0
-            if (horse.postPosition in 7..8) postBias -= 3.0
-        }
-
-        // 調教スコア
-        val trainingBonus = when (horse.trainingScore) {
-            "S" -> 10.0
-            "A+" -> 7.0
-            "A" -> 5.0
-            "B" -> 0.0
-            else -> -5.0
-        }
-
-        // 複合加重平均 (Total Score)
-        val weightedTotal = (
-            speedScore * 0.35 +
-            paceAdvantage * 0.20 +
-            pedigreeScore * 0.15 +
-            jockeyScore * 0.15 +
-            conditionScore * 0.10 +
-            postBias +
-            trainingBonus
-        ).coerceIn(15.0, 99.5)
-
-        // 勝率・複勝率シミュレーション
-        val winProbability = (weightedTotal / 100.0 * (1.0 / horse.odds * 2.8) * 100.0).coerceIn(2.0, 68.0)
-        val placeProbability = (winProbability * 2.4).coerceIn(8.0, 92.0)
-
-        // オッズ妙味度 (Expected Value Index) = (AI勝率 * オッズ) を基準とした指標
-        val evRatio = (winProbability / 100.0) * horse.odds
-        val expectedValueScore = (evRatio * 75.0).coerceIn(30.0, 99.0)
-
-        // AI寸評
-        val comment = generateComment(horse, paceAdvantage, pedigreeScore, horse.trainingScore)
-
-        return PredictionScore(
-            horseNumber = horse.horseNumber,
-            horseName = horse.name,
-            mark = "",
-            totalScore = (weightedTotal * 10).roundToInt() / 10.0,
-            speedScore = (speedScore * 10).roundToInt() / 10.0,
-            paceAdvantage = (paceAdvantage * 10).roundToInt() / 10.0,
-            pedigreeScore = (pedigreeScore * 10).roundToInt() / 10.0,
-            jockeyScore = (jockeyScore * 10).roundToInt() / 10.0,
-            conditionScore = (conditionScore * 10).roundToInt() / 10.0,
-            winProbability = (winProbability * 10).roundToInt() / 10.0,
-            placeProbability = (placeProbability * 10).roundToInt() / 10.0,
-            expectedValueScore = (expectedValueScore * 10).roundToInt() / 10.0,
-            comments = comment
-        )
+    private class Score(val speed: Double, val form: Double, val pace: Double, val training: Double, val jockey: Double, val pedigree: Double, val pedigreeKnown: Boolean) {
+        // 重み (合計 1)。サンプルには結果がないので手で決めた値
+        val total = speed * 0.35 + form * 0.15 + pace * 0.15 + training * 0.10 + jockey * 0.15 + pedigree * 0.10
     }
 
-    // 条件に当てはまる短評を並べて 1 文にする。
-    private fun generateComment(horse: Horse, paceScore: Double, pedigreeScore: Double, training: String): String {
+    private fun scoreOf(h: Horse, race: Race, pace: String): Score {
+        val speed = ((h.speedIndex - 60.0) / 60.0 * 100.0).coerceIn(0.0, 100.0)
+        val form = (100.0 - (h.recentRank - 1) * 12.0).coerceIn(20.0, 100.0) // 前走 1 着 = 100、着順が 1 つ下がるごとに −12
+        val paceFit = when (pace) {
+            "ハイペース" -> mapOf(RunningStyle.SASHI to 92.0, RunningStyle.OIKOMI to 88.0, RunningStyle.SENKO to 65.0, RunningStyle.NIGE to 48.0)
+            "スローペース" -> mapOf(RunningStyle.NIGE to 95.0, RunningStyle.SENKO to 88.0, RunningStyle.SASHI to 62.0, RunningStyle.OIKOMI to 45.0)
+            else -> mapOf(RunningStyle.SENKO to 88.0, RunningStyle.SASHI to 86.0, RunningStyle.NIGE to 75.0, RunningStyle.OIKOMI to 70.0)
+        }.getValue(h.runningStyle)
+        val training = mapOf("S" to 100.0, "A+" to 90.0, "A" to 80.0, "B" to 65.0, "C" to 50.0)[h.trainingScore] ?: 70.0
+        val jockey = (h.jockeyWinRate * 400.0).coerceIn(0.0, 100.0) // 勝率 25% で満点
+        // 血統: 名鑑で、その父の産駒が重賞を勝った馬場と距離が今回に近いほど高い。産駒が 3 頭未満なら分からない (50)
+        val st = sireStats(h.sire)?.takeIf { it.offspring >= 3 }
+        val pedigree = if (st == null) 50.0 else {
+            val surfaceShare = if (race.courseType == CourseType.TURF) st.turfShare else 1 - st.turfShare
+            val distClose = st.meanDistance?.let { max(0.0, 1 - abs(it - race.distanceMeters) / 1000.0) } ?: 0.5
+            100.0 * (0.6 * surfaceShare + 0.4 * distClose)
+        }
+        return Score(speed, form, paceFit, training, jockey, pedigree, st != null)
+    }
+
+    private fun comment(h: Horse, s: Score, mark: String?): String {
         val parts = mutableListOf<String>()
-        if (training == "S" || training == "A+") {
-            parts.add("調教の動きは絶好調")
-        }
-        if (paceScore >= 85.0) {
-            parts.add("今回のペース展開にベストマッチ")
-        }
-        if (pedigreeScore >= 88.0) {
-            parts.add("血統的コース適性は最上位")
-        }
-        if (horse.recentRank == 1) {
-            parts.add("前走快勝の勢い持続")
-        } else if (horse.recentRank <= 3) {
-            parts.add("近走安定した末脚を発揮")
-        }
+        if (s.training >= 90) parts += "調教の評価が高い"
+        if (s.pace >= 85) parts += "想定ペースが脚質に向く"
+        if (s.pedigreeKnown && s.pedigree >= 75) parts += "父の産駒は今回の馬場・距離で重賞を勝っている"
+        if (h.recentRank == 1) parts += "前走 1 着" else if (h.recentRank <= 3) parts += "前走 ${h.recentRank} 着と好調"
+        if (mark == "☆") parts += "評価は人気より高く、市場と意見が分かれる馬"
+        return if (parts.isEmpty()) "目立つ材料は少ない。" else parts.joinToString("、") + "。"
+    }
 
-        return if (parts.isEmpty()) {
-            "展開ひとつで上位進出のチャンス十分。"
-        } else {
-            parts.joinToString("、") + "。"
+    private fun recommendations(race: Race, p: DoubleArray): List<BetRecommendation> {
+        // ケリー基準: 賭ける割合 f = (p·O − 1) / (O − 1)。安全のため 1/4 だけ使う。p·O ≤ 1 なら賭けない
+        val picks = race.horses.mapIndexedNotNull { i, h ->
+            val ev = p[i] * h.odds
+            if (ev > 1 && h.odds > 1) Triple(h, ev, 0.25 * (ev - 1) / (h.odds - 1)) else null
+        }.sortedByDescending { it.third }.take(3)
+        if (picks.isEmpty()) {
+            return listOf(BetRecommendation("見送り", "-", 0.0, "-", 0,
+                "勝率 × オッズ (期待値) が 1 を超える馬がいません。控除率があるので、市場どおりの見積もりでは長く続けるほど損をします。"))
+        }
+        val total = picks.sumOf { it.third }
+        return picks.map { (h, ev, k) ->
+            BetRecommendation("単勝", "${h.horseNumber} (${h.name})", h.odds, if (ev >= 1.2) "A" else "B", (k / total * 100).roundToInt(),
+                "期待値 ${"%.2f".format(ev)}。資金の ${"%.1f".format(k * 100)}% (ケリー基準の 1/4)。")
         }
     }
 
-    // 印の付いた馬から 4 種類の買い目を作る。allocationPercent は予算の配分 (合計 100%)。
-    // 想定オッズは単勝オッズからの大まかな見積もりで、実際の配当とは異なる。
-    private fun generateBetRecommendations(race: Race, predictions: List<PredictionScore>): List<BetRecommendation> {
-        val honmei = predictions.firstOrNull { it.mark == "◎" } ?: predictions[0]
-        val taiko = predictions.firstOrNull { it.mark == "◯" } ?: predictions.getOrNull(1)
-        val tanana = predictions.firstOrNull { it.mark == "▲" } ?: predictions.getOrNull(2)
-        val ana = predictions.firstOrNull { it.mark == "☆" }
+    private fun r1(v: Double) = (v * 10).roundToInt() / 10.0
 
-        val list = mutableListOf<BetRecommendation>()
-
-        // 1. 単勝
-        val honmeiHorse = race.horses.first { it.horseNumber == honmei.horseNumber }
-        list.add(
-            BetRecommendation(
-                betType = "単勝",
-                combination = "${honmei.horseNumber} (${honmei.horseName})",
-                oddsEstimate = honmeiHorse.odds,
-                confidence = if (honmei.totalScore >= 88.0) "S" else "A",
-                allocationPercent = 35,
-                reason = "総合スコア1位。指数・展開ともに抜けており最も信頼度が高い本命馬。"
-            )
-        )
-
-        // 2. 馬連 (◎ - ◯, ▲)
-        if (taiko != null) {
-            val taikoHorse = race.horses.first { it.horseNumber == taiko.horseNumber }
-            val estimatedUmarenOdds = ((honmeiHorse.odds * taikoHorse.odds) / 2.2).coerceAtLeast(4.0)
-            list.add(
-                BetRecommendation(
-                    betType = "馬連",
-                    combination = "${honmei.horseNumber} - ${taiko.horseNumber}",
-                    oddsEstimate = (estimatedUmarenOdds * 10).roundToInt() / 10.0,
-                    confidence = "A",
-                    allocationPercent = 30,
-                    reason = "本命と対抗の実力上位2頭による堅実かつ期待値の高い組み合わせ。"
-                )
-            )
+    companion object {
+        /** 単勝オッズ → 勝率。市場の確率 q = (1/O) / Σ(1/O) を α 乗して合計 1 にそろえる (α = 1 なら市場そのまま) */
+        fun winProbabilities(odds: List<Double>, alpha: Double): DoubleArray {
+            val inv = odds.map { if (it > 0) 1 / it else 0.0 }
+            val s = inv.sum()
+            val w = inv.map { (it / s).pow(alpha) }
+            val t = w.sum()
+            return w.map { it / t }.toDoubleArray()
         }
 
-        // 3. ワイド or 3連複
-        if (taiko != null && tanana != null) {
-            list.add(
-                BetRecommendation(
-                    betType = "3連複",
-                    combination = "${honmei.horseNumber} = ${taiko.horseNumber} = ${tanana.horseNumber}" + (if (ana != null) ", ${ana.horseNumber}" else ""),
-                    oddsEstimate = 24.5,
-                    confidence = "B",
-                    allocationPercent = 25,
-                    reason = "上位印を中心にフォーメーション。3着穴馬の台頭まで手広くカバー。"
-                )
-            )
+        /** 各馬が 3 着以内に入る確率 (Harville の式。勝率が softmax のモデルではこの式が正しい) */
+        fun top3Probabilities(p: DoubleArray): DoubleArray {
+            val n = p.size
+            val out = DoubleArray(n)
+            for (a in 0 until n) for (b in 0 until n) {
+                if (a == b) continue
+                val pab = p[a] * p[b] / (1 - p[a])
+                for (c in 0 until n) {
+                    if (c == a || c == b) continue
+                    val pabc = pab * p[c] / (1 - p[a] - p[b])
+                    out[a] += pabc; out[b] += pabc; out[c] += pabc
+                }
+            }
+            return out
         }
-
-        // 4. 穴狙い (ワイド ◎ - ☆)
-        if (ana != null) {
-            val anaHorse = race.horses.first { it.horseNumber == ana.horseNumber }
-            list.add(
-                BetRecommendation(
-                    betType = "ワイド",
-                    combination = "${honmei.horseNumber} - ${ana.horseNumber}",
-                    oddsEstimate = (anaHorse.odds * 1.8).coerceAtLeast(6.5),
-                    confidence = "B+",
-                    allocationPercent = 10,
-                    reason = "オッズに対して評価が高い☆の馬を相手に。"
-                )
-            )
-        }
-
-        return list
     }
 }

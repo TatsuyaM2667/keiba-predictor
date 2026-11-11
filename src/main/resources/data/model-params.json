@@ -1,0 +1,91 @@
+{
+    "version": 1,
+    "fittedAt": "2026-11-12",
+    "races": 41,
+    "runners": 499,
+    "selected": "market",
+    "alpha": 1.0,
+    "features": [
+        "form",
+        "distFit",
+        "unfamiliarSurface",
+        "noRuns",
+        "paceStyle",
+        "waku"
+    ],
+    "mean": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+    ],
+    "sd": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+    ],
+    "beta": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+    ],
+    "report": [
+        {
+            "name": "uniform",
+            "label": "全頭同じ確率",
+            "logLoss": 2.4639165590445242,
+            "vsMarket": 0.6657714857317465,
+            "vsMarketSe": 0.17772607415679695,
+            "note": ""
+        },
+        {
+            "name": "market",
+            "label": "市場 (単勝オッズそのまま)",
+            "logLoss": 1.798145073312778,
+            "vsMarket": null,
+            "vsMarketSe": null,
+            "note": ""
+        },
+        {
+            "name": "hand",
+            "label": "今の手動モデル (Zig と同じ・係数は手で決めた)",
+            "logLoss": 2.104800645857954,
+            "vsMarket": 0.30665557254517645,
+            "vsMarketSe": 0.17557404890734604,
+            "note": ""
+        },
+        {
+            "name": "features",
+            "label": "特徴量だけで学習 (交差検証)",
+            "logLoss": 2.1368751991398325,
+            "vsMarket": 0.3387301258270549,
+            "vsMarketSe": 0.14958826866947242,
+            "note": ""
+        },
+        {
+            "name": "market_power",
+            "label": "市場の確率を補正 (q^α・交差検証)",
+            "logLoss": 1.8303569833495414,
+            "vsMarket": 0.03221191003676349,
+            "vsMarketSe": 0.006649232362435634,
+            "note": ""
+        },
+        {
+            "name": "market_features",
+            "label": "市場 + 特徴量 (交差検証)",
+            "logLoss": 1.8330804346022795,
+            "vsMarket": 0.03493536128950128,
+            "vsMarketSe": 0.048766276661093004,
+            "note": ""
+        }
+    ],
+    "note": "市場 (単勝オッズ) より、はっきり良いモデルはまだありません。勝率は市場の確率を使います"
+}

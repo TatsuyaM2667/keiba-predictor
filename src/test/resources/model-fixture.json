@@ -1,0 +1,2348 @@
+{
+ "params": {
+  "alpha": 0.9,
+  "mean": [
+   0.5,
+   -0.01,
+   0.2,
+   0.05,
+   0,
+   4.5
+  ],
+  "sd": [
+   0.2,
+   0.01,
+   0.4,
+   0.2,
+   0.2,
+   2.3
+  ],
+  "beta": [
+   0.6,
+   0.2,
+   -0.3,
+   -0.5,
+   0.4,
+   -0.1
+  ]
+ },
+ "races": [
+  {
+   "race": {
+    "id": "20261108-05-04",
+    "date": "2026-11-08",
+    "venueName": "東京",
+    "race_no": 4,
+    "name": "メイクデビュー東京",
+    "grade": "",
+    "result": {
+     "order": [
+      {
+       "place": 1,
+       "status": "",
+       "num": 11
+      },
+      {
+       "place": 2,
+       "status": "",
+       "num": 8
+      },
+      {
+       "place": 3,
+       "status": "",
+       "num": 6
+      },
+      {
+       "place": 4,
+       "status": "",
+       "num": 5
+      },
+      {
+       "place": 5,
+       "status": "",
+       "num": 14
+      },
+      {
+       "place": 6,
+       "status": "",
+       "num": 7
+      },
+      {
+       "place": 7,
+       "status": "",
+       "num": 12
+      },
+      {
+       "place": 8,
+       "status": "",
+       "num": 15
+      },
+      {
+       "place": 9,
+       "status": "",
+       "num": 16
+      },
+      {
+       "place": 10,
+       "status": "",
+       "num": 10
+      },
+      {
+       "place": 11,
+       "status": "",
+       "num": 1
+      },
+      {
+       "place": 12,
+       "status": "",
+       "num": 3
+      },
+      {
+       "place": 12,
+       "status": "",
+       "num": 9
+      },
+      {
+       "place": 14,
+       "status": "",
+       "num": 13
+      },
+      {
+       "place": 15,
+       "status": "",
+       "num": 4
+      },
+      {
+       "place": 16,
+       "status": "",
+       "num": 2
+      }
+     ]
+    },
+    "card": {
+     "header": {
+      "name": "メイクデビュー東京",
+      "grade": "",
+      "distance": 1600,
+      "surface": "ダート",
+      "postTime": "11:25",
+      "cond": "2歳 新馬 （混合）［指定］ 馬齢"
+     },
+     "runners": [
+      {
+       "waku": 1,
+       "num": 1,
+       "name": "",
+       "odds": 281.3,
+       "pop": 14,
+       "scratched": false,
+       "color": "栗",
+       "past": []
+      },
+      {
+       "waku": 1,
+       "num": 2,
+       "name": "",
+       "odds": 314,
+       "pop": 15,
+       "scratched": false,
+       "color": "黒鹿",
+       "past": []
+      },
+      {
+       "waku": 2,
+       "num": 3,
+       "name": "",
+       "odds": 32.4,
+       "pop": 9,
+       "scratched": false,
+       "color": "栗",
+       "past": []
+      },
+      {
+       "waku": 2,
+       "num": 4,
+       "name": "",
+       "odds": 87,
+       "pop": 11,
+       "scratched": false,
+       "color": "黒鹿",
+       "past": []
+      },
+      {
+       "waku": 3,
+       "num": 6,
+       "name": "",
+       "odds": 22.6,
+       "pop": 8,
+       "scratched": false,
+       "color": "黒鹿",
+       "past": []
+      },
+      {
+       "waku": 4,
+       "num": 7,
+       "name": "",
+       "odds": 2.4,
+       "pop": 1,
+       "scratched": false,
+       "color": "栗",
+       "past": []
+      },
+      {
+       "waku": 4,
+       "num": 8,
+       "name": "",
+       "odds": 19,
+       "pop": 7,
+       "scratched": false,
+       "color": "鹿",
+       "past": []
+      },
+      {
+       "waku": 5,
+       "num": 9,
+       "name": "",
+       "odds": 347.6,
+       "pop": 16,
+       "scratched": false,
+       "color": "青鹿",
+       "past": []
+      },
+      {
+       "waku": 5,
+       "num": 10,
+       "name": "",
+       "odds": 17.5,
+       "pop": 5,
+       "scratched": false,
+       "color": "鹿",
+       "past": []
+      },
+      {
+       "waku": 6,
+       "num": 11,
+       "name": "",
+       "odds": 17.8,
+       "pop": 6,
+       "scratched": false,
+       "color": "黒鹿",
+       "past": []
+      },
+      {
+       "waku": 6,
+       "num": 12,
+       "name": "",
+       "odds": 64.3,
+       "pop": 10,
+       "scratched": false,
+       "color": "栗",
+       "past": []
+      },
+      {
+       "waku": 7,
+       "num": 13,
+       "name": "",
+       "odds": 131.5,
+       "pop": 12,
+       "scratched": false,
+       "color": "栗",
+       "past": []
+      },
+      {
+       "waku": 7,
+       "num": 14,
+       "name": "",
+       "odds": 2.6,
+       "pop": 2,
+       "scratched": false,
+       "color": "鹿",
+       "past": []
+      },
+      {
+       "waku": 8,
+       "num": 15,
+       "name": "",
+       "odds": 14,
+       "pop": 4,
+       "scratched": false,
+       "color": "鹿",
+       "past": []
+      },
+      {
+       "waku": 8,
+       "num": 16,
+       "name": "",
+       "odds": 134.2,
+       "pop": 13,
+       "scratched": false,
+       "color": "栗",
+       "past": []
+      }
+     ]
+    }
+   },
+   "expected": {
+    "pace": 0.8,
+    "styles": [
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2,
+     2
+    ],
+    "X": [
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      1
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      1
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      2
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      2
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      3
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      4
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      4
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      5
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      5
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      6
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      6
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      7
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      7
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      8
+     ],
+     [
+      0.4,
+      0,
+      0,
+      1,
+      -0.09999999999999998,
+      8
+     ]
+    ],
+    "q": [
+     0.003050138447960395,
+     0.0027324966414371313,
+     0.026481603253433926,
+     0.009862114315071944,
+     0.03796477634563094,
+     0.357501643921358,
+     0.04515810239006627,
+     0.0024683657808148994,
+     0.04902879688064338,
+     0.04820246884332917,
+     0.013343762759117563,
+     0.006524744832024785,
+     0.33000151746586887,
+     0.06128599610080422,
+     0.006393472022438593
+    ],
+    "p": [
+     0.005441649951491422,
+     0.004928862205292892,
+     0.036442694653775906,
+     0.014980753707501385,
+     0.04825263421117154,
+     0.3476531239838094,
+     0.05400798979985633,
+     0.0037799155238883967,
+     0.05568261737750788,
+     0.05250413575698513,
+     0.016526528641952,
+     0.008311051432700832,
+     0.28393121070433,
+     0.05974362174009538,
+     0.007813210309641515
+    ]
+   }
+  },
+  {
+   "race": {
+    "id": "20261108-05-01",
+    "date": "2026-11-08",
+    "venueName": "東京",
+    "race_no": 1,
+    "name": "2歳未勝利",
+    "grade": "",
+    "result": {
+     "order": [
+      {
+       "place": 1,
+       "status": "",
+       "num": 2
+      },
+      {
+       "place": 2,
+       "status": "",
+       "num": 7
+      },
+      {
+       "place": 3,
+       "status": "",
+       "num": 4
+      },
+      {
+       "place": 4,
+       "status": "",
+       "num": 11
+      },
+      {
+       "place": 5,
+       "status": "",
+       "num": 9
+      },
+      {
+       "place": 6,
+       "status": "",
+       "num": 6
+      },
+      {
+       "place": 7,
+       "status": "",
+       "num": 10
+      },
+      {
+       "place": 8,
+       "status": "",
+       "num": 8
+      },
+      {
+       "place": 9,
+       "status": "",
+       "num": 5
+      },
+      {
+       "place": 10,
+       "status": "",
+       "num": 3
+      },
+      {
+       "place": 11,
+       "status": "",
+       "num": 1
+      }
+     ]
+    },
+    "card": {
+     "header": {
+      "name": "2歳未勝利",
+      "grade": "",
+      "distance": 1600,
+      "surface": "ダート",
+      "postTime": "09:55",
+      "cond": "2歳 未勝利 [指定] 馬齢"
+     },
+     "runners": [
+      {
+       "waku": 1,
+       "num": 1,
+       "name": "",
+       "odds": 12.4,
+       "pop": 5,
+       "scratched": false,
+       "color": "黒鹿",
+       "past": [
+        {
+         "place": 4,
+         "field": 16,
+         "grade": "",
+         "diff": 2.2,
+         "distance": 1600,
+         "surface": "ダート",
+         "corners": [
+          10
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 2,
+       "num": 2,
+       "name": "",
+       "odds": 1.8,
+       "pop": 1,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 3,
+         "field": 12,
+         "grade": "",
+         "diff": 0.3,
+         "distance": 1600,
+         "surface": "芝",
+         "corners": [
+          5
+         ]
+        },
+        {
+         "place": 2,
+         "field": 12,
+         "grade": "",
+         "diff": 0.2,
+         "distance": 1600,
+         "surface": "芝",
+         "corners": [
+          2
+         ]
+        },
+        {
+         "place": 12,
+         "field": 14,
+         "grade": "",
+         "diff": 2.1,
+         "distance": 1800,
+         "surface": "芝",
+         "corners": [
+          7
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 3,
+       "num": 3,
+       "name": "",
+       "odds": 47.8,
+       "pop": 7,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 8,
+         "field": 13,
+         "grade": "",
+         "diff": 0.9,
+         "distance": 1800,
+         "surface": "芝",
+         "corners": [
+          9
+         ]
+        },
+        {
+         "place": 6,
+         "field": 8,
+         "grade": "",
+         "diff": 1.5,
+         "distance": 1800,
+         "surface": "芝",
+         "corners": [
+          3
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 4,
+       "num": 4,
+       "name": "",
+       "odds": 5.5,
+       "pop": 2,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 2,
+         "field": 12,
+         "grade": "",
+         "diff": 0.7,
+         "distance": 1800,
+         "surface": "ダート",
+         "corners": [
+          8
+         ]
+        },
+        {
+         "place": 5,
+         "field": 8,
+         "grade": "",
+         "diff": 1.4,
+         "distance": 1800,
+         "surface": "ダート",
+         "corners": [
+          7
+         ]
+        },
+        {
+         "place": 8,
+         "field": 14,
+         "grade": "",
+         "diff": 1.4,
+         "distance": 1700,
+         "surface": "ダート",
+         "corners": [
+          14
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 5,
+       "num": 5,
+       "name": "",
+       "odds": 258.6,
+       "pop": 11,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 6,
+         "field": 12,
+         "grade": "",
+         "diff": 3.2,
+         "distance": 1600,
+         "surface": "ダート",
+         "corners": [
+          9
+         ]
+        },
+        {
+         "place": 5,
+         "field": 7,
+         "grade": "",
+         "diff": 3.5,
+         "distance": 1800,
+         "surface": "ダート",
+         "corners": [
+          6
+         ]
+        },
+        {
+         "place": 10,
+         "field": 12,
+         "grade": "",
+         "diff": 4.1,
+         "distance": 1800,
+         "surface": "ダート",
+         "corners": [
+          7
+         ]
+        },
+        {
+         "place": 11,
+         "field": 11,
+         "grade": "",
+         "diff": 4,
+         "distance": 1800,
+         "surface": "芝",
+         "corners": [
+          7
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 6,
+       "num": 6,
+       "name": "",
+       "odds": 15.4,
+       "pop": 6,
+       "scratched": false,
+       "color": "青鹿",
+       "past": [
+        {
+         "place": 9,
+         "field": 14,
+         "grade": "",
+         "diff": 1.3,
+         "distance": 1800,
+         "surface": "芝",
+         "corners": [
+          9
+         ]
+        },
+        {
+         "place": 4,
+         "field": 8,
+         "grade": "",
+         "diff": 0.8,
+         "distance": 1600,
+         "surface": "芝",
+         "corners": [
+          1
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 6,
+       "num": 7,
+       "name": "",
+       "odds": 5.6,
+       "pop": 3,
+       "scratched": false,
+       "color": "青鹿",
+       "past": [
+        {
+         "place": 4,
+         "field": 12,
+         "grade": "",
+         "diff": 0.7,
+         "distance": 1800,
+         "surface": "ダート",
+         "corners": [
+          1
+         ]
+        },
+        {
+         "place": 6,
+         "field": 16,
+         "grade": "",
+         "diff": 1.1,
+         "distance": 1800,
+         "surface": "ダート",
+         "corners": [
+          3
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 7,
+       "num": 8,
+       "name": "",
+       "odds": 118,
+       "pop": 10,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 11,
+         "field": 13,
+         "grade": "",
+         "diff": 2.4,
+         "distance": 1800,
+         "surface": "芝",
+         "corners": [
+          9
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 7,
+       "num": 9,
+       "name": "",
+       "odds": 7,
+       "pop": 4,
+       "scratched": false,
+       "color": "栗",
+       "past": [
+        {
+         "place": 3,
+         "field": 16,
+         "grade": "",
+         "diff": 1,
+         "distance": 1600,
+         "surface": "ダート",
+         "corners": [
+          11
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 8,
+       "num": 10,
+       "name": "",
+       "odds": 57.2,
+       "pop": 8,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 9,
+         "field": 12,
+         "grade": "",
+         "diff": 1.7,
+         "distance": 1400,
+         "surface": "芝",
+         "corners": [
+          7
+         ]
+        },
+        {
+         "place": 8,
+         "field": 11,
+         "grade": "",
+         "diff": 1.3,
+         "distance": 1200,
+         "surface": "芝",
+         "corners": [
+          8
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 8,
+       "num": 11,
+       "name": "",
+       "odds": 88,
+       "pop": 9,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 8,
+         "field": 16,
+         "grade": "",
+         "diff": 2,
+         "distance": 1400,
+         "surface": "ダート",
+         "corners": [
+          13
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "expected": {
+    "pace": 0.8,
+    "styles": [
+     2,
+     1,
+     2,
+     3,
+     3,
+     1,
+     0,
+     2,
+     2,
+     2,
+     3
+    ],
+    "X": [
+     [
+      0.7120000000000001,
+      0,
+      0,
+      0,
+      -0.09999999999999998,
+      1
+     ],
+     [
+      0.6741880341880342,
+      0,
+      1,
+      0,
+      0.09999999999999998,
+      2
+     ],
+     [
+      0.3142585034013606,
+      0,
+      1,
+      0,
+      -0.09999999999999998,
+      3
+     ],
+     [
+      0.6059060939060941,
+      -0.008333333333333337,
+      0,
+      0,
+      -0.29999999999999993,
+      4
+     ],
+     [
+      0.23454545454545458,
+      -0.006666666666666663,
+      0,
+      0,
+      -0.29999999999999993,
+      5
+     ],
+     [
+      0.4212496075353218,
+      0,
+      1,
+      0,
+      0.09999999999999998,
+      6
+     ],
+     [
+      0.6664415584415584,
+      -0.01,
+      0,
+      0,
+      0.29999999999999993,
+      6
+     ],
+     [
+      0.07066666666666663,
+      0,
+      1,
+      0,
+      -0.09999999999999998,
+      7
+     ],
+     [
+      0.8266666666666667,
+      0,
+      0,
+      0,
+      -0.09999999999999998,
+      7
+     ],
+     [
+      0.2232727272727273,
+      0,
+      1,
+      0,
+      -0.09999999999999998,
+      8
+     ],
+     [
+      0.45333333333333337,
+      -0.01,
+      0,
+      0,
+      -0.29999999999999993,
+      8
+     ]
+    ],
+    "q": [
+     0.06367607637038206,
+     0.43865741499596533,
+     0.016518480062609576,
+     0.1435606085441341,
+     0.0030532998723617074,
+     0.051271645908619316,
+     0.14099702624870314,
+     0.006691384296548623,
+     0.11279762099896251,
+     0.0138039046677052,
+     0.008972538034008382
+    ],
+    "p": [
+     0.10092454397022448,
+     0.3452876427848535,
+     0.003934547519216427,
+     0.07599317419319229,
+     0.0007717734278283623,
+     0.01968243735623498,
+     0.26394570169300047,
+     0.0007059677279452301,
+     0.18348102831304222,
+     0.0020500656576535733,
+     0.0032231173568085443
+    ]
+   }
+  },
+  {
+   "race": {
+    "id": "20261108-05-11",
+    "date": "2026-11-08",
+    "venueName": "東京",
+    "race_no": 11,
+    "name": "アルゼンチン共和国杯",
+    "grade": "GII",
+    "result": {
+     "order": [
+      {
+       "place": 1,
+       "status": "",
+       "num": 6
+      },
+      {
+       "place": 2,
+       "status": "",
+       "num": 15
+      },
+      {
+       "place": 3,
+       "status": "",
+       "num": 12
+      },
+      {
+       "place": 4,
+       "status": "",
+       "num": 3
+      },
+      {
+       "place": 5,
+       "status": "",
+       "num": 1
+      },
+      {
+       "place": 6,
+       "status": "",
+       "num": 4
+      },
+      {
+       "place": 7,
+       "status": "",
+       "num": 5
+      },
+      {
+       "place": 8,
+       "status": "",
+       "num": 7
+      },
+      {
+       "place": 9,
+       "status": "",
+       "num": 16
+      },
+      {
+       "place": 10,
+       "status": "",
+       "num": 9
+      },
+      {
+       "place": 11,
+       "status": "",
+       "num": 11
+      },
+      {
+       "place": 12,
+       "status": "",
+       "num": 17
+      },
+      {
+       "place": 13,
+       "status": "",
+       "num": 2
+      },
+      {
+       "place": 14,
+       "status": "",
+       "num": 8
+      },
+      {
+       "place": 15,
+       "status": "",
+       "num": 10
+      },
+      {
+       "place": 16,
+       "status": "",
+       "num": 13
+      },
+      {
+       "place": 17,
+       "status": "",
+       "num": 18
+      },
+      {
+       "place": 18,
+       "status": "",
+       "num": 14
+      }
+     ]
+    },
+    "card": {
+     "header": {
+      "name": "アルゼンチン共和国杯",
+      "grade": "GII",
+      "distance": 2500,
+      "surface": "芝",
+      "postTime": "15:30",
+      "cond": "3歳以上 オープン （国際）（特指） ハンデ"
+     },
+     "runners": [
+      {
+       "waku": 1,
+       "num": 1,
+       "name": "",
+       "odds": 52.3,
+       "pop": 14,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 15,
+         "field": 16,
+         "grade": "GIII",
+         "diff": 3.1,
+         "distance": 2000,
+         "surface": "芝",
+         "corners": [
+          1
+         ]
+        },
+        {
+         "place": 1,
+         "field": 11,
+         "grade": "",
+         "diff": 0.3,
+         "distance": 2000,
+         "surface": "芝",
+         "corners": [
+          1
+         ]
+        },
+        {
+         "place": 14,
+         "field": 16,
+         "grade": "",
+         "diff": 3.7,
+         "distance": 2100,
+         "surface": "ダート",
+         "corners": [
+          6
+         ]
+        },
+        {
+         "place": 1,
+         "field": 11,
+         "grade": "",
+         "diff": 0.2,
+         "distance": 2100,
+         "surface": "ダート",
+         "corners": [
+          3
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 1,
+       "num": 2,
+       "name": "",
+       "odds": 10.6,
+       "pop": 5,
+       "scratched": false,
+       "color": "栗",
+       "past": [
+        {
+         "place": 15,
+         "field": 18,
+         "grade": "GI",
+         "diff": 3,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          16
+         ]
+        },
+        {
+         "place": 7,
+         "field": 7,
+         "grade": "GII",
+         "diff": null,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": []
+        },
+        {
+         "place": 5,
+         "field": 17,
+         "grade": "GI",
+         "diff": 0.9,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": []
+        },
+        {
+         "place": 1,
+         "field": 9,
+         "grade": "GII",
+         "diff": 0,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": []
+        }
+       ]
+      },
+      {
+       "waku": 2,
+       "num": 3,
+       "name": "",
+       "odds": 18.2,
+       "pop": 9,
+       "scratched": false,
+       "color": "黒鹿",
+       "past": [
+        {
+         "place": 2,
+         "field": 18,
+         "grade": "GII",
+         "diff": 0.1,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          5
+         ]
+        },
+        {
+         "place": 10,
+         "field": 18,
+         "grade": "GI",
+         "diff": 1.7,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          3
+         ]
+        },
+        {
+         "place": 5,
+         "field": 10,
+         "grade": "GII",
+         "diff": 1,
+         "distance": 3000,
+         "surface": "芝",
+         "corners": [
+          5
+         ]
+        },
+        {
+         "place": 11,
+         "field": 16,
+         "grade": "GII",
+         "diff": 1.3,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          15
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 2,
+       "num": 4,
+       "name": "",
+       "odds": 5.7,
+       "pop": 1,
+       "scratched": false,
+       "color": "黒鹿",
+       "past": [
+        {
+         "place": 1,
+         "field": 13,
+         "grade": "L",
+         "diff": 0.2,
+         "distance": 2600,
+         "surface": "芝",
+         "corners": [
+          7
+         ]
+        },
+        {
+         "place": 4,
+         "field": 14,
+         "grade": "GII",
+         "diff": 0.2,
+         "distance": 2500,
+         "surface": "芝",
+         "corners": [
+          7
+         ]
+        },
+        {
+         "place": 1,
+         "field": 16,
+         "grade": "",
+         "diff": 0.1,
+         "distance": 2000,
+         "surface": "芝",
+         "corners": [
+          5
+         ]
+        },
+        {
+         "place": 3,
+         "field": 8,
+         "grade": "",
+         "diff": 0.6,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          5
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 3,
+       "num": 5,
+       "name": "",
+       "odds": 7.1,
+       "pop": 4,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 4,
+         "field": 15,
+         "grade": "GIII",
+         "diff": 0.2,
+         "distance": 2000,
+         "surface": "芝",
+         "corners": [
+          8
+         ]
+        },
+        {
+         "place": 5,
+         "field": 14,
+         "grade": "GII",
+         "diff": 0.1,
+         "distance": 2000,
+         "surface": "芝",
+         "corners": [
+          9
+         ]
+        },
+        {
+         "place": 2,
+         "field": 16,
+         "grade": "GII",
+         "diff": 0.3,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          12
+         ]
+        },
+        {
+         "place": 2,
+         "field": 11,
+         "grade": "GII",
+         "diff": 0.2,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          9
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 3,
+       "num": 6,
+       "name": "",
+       "odds": 74.2,
+       "pop": 16,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 12,
+         "field": 18,
+         "grade": "GII",
+         "diff": 1,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          8
+         ]
+        },
+        {
+         "place": 6,
+         "field": 18,
+         "grade": "GI",
+         "diff": 1.4,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          9
+         ]
+        },
+        {
+         "place": 9,
+         "field": 10,
+         "grade": "GII",
+         "diff": 2.4,
+         "distance": 3000,
+         "surface": "芝",
+         "corners": [
+          2
+         ]
+        },
+        {
+         "place": 2,
+         "field": 13,
+         "grade": "GII",
+         "diff": 0,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          1
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 4,
+       "num": 7,
+       "name": "",
+       "odds": 5.8,
+       "pop": 3,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 1,
+         "field": 14,
+         "grade": "GII",
+         "diff": 0,
+         "distance": 2500,
+         "surface": "芝",
+         "corners": [
+          5
+         ]
+        },
+        {
+         "place": 2,
+         "field": 15,
+         "grade": "GIII",
+         "diff": 0.2,
+         "distance": 3400,
+         "surface": "芝",
+         "corners": [
+          9
+         ]
+        },
+        {
+         "place": 12,
+         "field": 12,
+         "grade": "GII",
+         "diff": 1.8,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          9
+         ]
+        },
+        {
+         "place": 9,
+         "field": 18,
+         "grade": "GI",
+         "diff": 0.9,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          5
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 4,
+       "num": 8,
+       "name": "",
+       "odds": 10.6,
+       "pop": 5,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 1,
+         "field": 16,
+         "grade": "",
+         "diff": 0.1,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          6
+         ]
+        },
+        {
+         "place": 4,
+         "field": 14,
+         "grade": "",
+         "diff": 0.5,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          13
+         ]
+        },
+        {
+         "place": 1,
+         "field": 9,
+         "grade": "",
+         "diff": 0.1,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          3
+         ]
+        },
+        {
+         "place": 8,
+         "field": 10,
+         "grade": "GII",
+         "diff": 0.9,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          10
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 5,
+       "num": 9,
+       "name": "",
+       "odds": 5.7,
+       "pop": 1,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 1,
+         "field": 11,
+         "grade": "",
+         "diff": 0.1,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          7
+         ]
+        },
+        {
+         "place": 7,
+         "field": 10,
+         "grade": "GII",
+         "diff": 1.8,
+         "distance": 3000,
+         "surface": "芝",
+         "corners": [
+          8
+         ]
+        },
+        {
+         "place": 1,
+         "field": 8,
+         "grade": "",
+         "diff": 0.2,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          4
+         ]
+        },
+        {
+         "place": 5,
+         "field": 16,
+         "grade": "",
+         "diff": 0.5,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          10
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 5,
+       "num": 10,
+       "name": "",
+       "odds": 105.1,
+       "pop": 17,
+       "scratched": false,
+       "color": "黒鹿",
+       "past": [
+        {
+         "place": 9,
+         "field": 18,
+         "grade": "L",
+         "diff": 1,
+         "distance": 2000,
+         "surface": "芝",
+         "corners": [
+          6
+         ]
+        },
+        {
+         "place": 7,
+         "field": 11,
+         "grade": "GIII",
+         "diff": 0.4,
+         "distance": 2000,
+         "surface": "芝",
+         "corners": [
+          2
+         ]
+        },
+        {
+         "place": 5,
+         "field": 16,
+         "grade": "GIII",
+         "diff": 0.8,
+         "distance": 2000,
+         "surface": "芝",
+         "corners": [
+          11
+         ]
+        },
+        {
+         "place": 11,
+         "field": 14,
+         "grade": "GII",
+         "diff": 0.6,
+         "distance": 2500,
+         "surface": "芝",
+         "corners": [
+          8
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 6,
+       "num": 11,
+       "name": "",
+       "odds": 12.5,
+       "pop": 7,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 6,
+         "field": 18,
+         "grade": "GII",
+         "diff": 0.4,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          6
+         ]
+        },
+        {
+         "place": 8,
+         "field": 18,
+         "grade": "GIII",
+         "diff": 0.7,
+         "distance": 2000,
+         "surface": "芝",
+         "corners": [
+          8
+         ]
+        },
+        {
+         "place": 1,
+         "field": 12,
+         "grade": "L",
+         "diff": 0,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          5
+         ]
+        },
+        {
+         "place": 2,
+         "field": 13,
+         "grade": "",
+         "diff": 0,
+         "distance": 2600,
+         "surface": "芝",
+         "corners": [
+          4
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 6,
+       "num": 12,
+       "name": "",
+       "odds": 36.9,
+       "pop": 12,
+       "scratched": false,
+       "color": "黒鹿",
+       "past": [
+        {
+         "place": 1,
+         "field": 13,
+         "grade": "GII",
+         "diff": 0,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          1
+         ]
+        },
+        {
+         "place": 6,
+         "field": 8,
+         "grade": "",
+         "diff": 6.6,
+         "distance": 3000,
+         "surface": "芝",
+         "corners": [
+          5
+         ]
+        },
+        {
+         "place": 8,
+         "field": 14,
+         "grade": "",
+         "diff": 3.5,
+         "distance": 2880,
+         "surface": "芝",
+         "corners": [
+          10
+         ]
+        },
+        {
+         "place": 1,
+         "field": 8,
+         "grade": "",
+         "diff": 0.3,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          2
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 7,
+       "num": 13,
+       "name": "",
+       "odds": 128.8,
+       "pop": 18,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 6,
+         "field": 14,
+         "grade": "",
+         "diff": 1.7,
+         "distance": 2600,
+         "surface": "芝",
+         "corners": [
+          10
+         ]
+        },
+        {
+         "place": 10,
+         "field": 15,
+         "grade": "GI",
+         "diff": 1.6,
+         "distance": 3200,
+         "surface": "芝",
+         "corners": [
+          4
+         ]
+        },
+        {
+         "place": 7,
+         "field": 15,
+         "grade": "GIII",
+         "diff": 0.8,
+         "distance": 3400,
+         "surface": "芝",
+         "corners": [
+          2
+         ]
+        },
+        {
+         "place": 2,
+         "field": 14,
+         "grade": "GII",
+         "diff": 0.1,
+         "distance": 3600,
+         "surface": "芝",
+         "corners": [
+          5
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 7,
+       "num": 14,
+       "name": "",
+       "odds": 15.6,
+       "pop": 8,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 18,
+         "field": 18,
+         "grade": "GII",
+         "diff": 1.6,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          8
+         ]
+        },
+        {
+         "place": 12,
+         "field": 18,
+         "grade": "GI",
+         "diff": 2.4,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          7
+         ]
+        },
+        {
+         "place": 2,
+         "field": 15,
+         "grade": "GII",
+         "diff": 0.2,
+         "distance": 2500,
+         "surface": "芝",
+         "corners": [
+          5
+         ]
+        },
+        {
+         "place": 1,
+         "field": 14,
+         "grade": "",
+         "diff": 0.3,
+         "distance": 2500,
+         "surface": "芝",
+         "corners": [
+          9
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 7,
+       "num": 15,
+       "name": "",
+       "odds": 37.9,
+       "pop": 13,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 14,
+         "field": 15,
+         "grade": "GI",
+         "diff": 2.4,
+         "distance": 3200,
+         "surface": "芝",
+         "corners": [
+          2
+         ]
+        },
+        {
+         "place": 5,
+         "field": 15,
+         "grade": "GIII",
+         "diff": 0.6,
+         "distance": 3400,
+         "surface": "芝",
+         "corners": [
+          5
+         ]
+        },
+        {
+         "place": 1,
+         "field": 14,
+         "grade": "GII",
+         "diff": 0.1,
+         "distance": 3600,
+         "surface": "芝",
+         "corners": [
+          3
+         ]
+        },
+        {
+         "place": 6,
+         "field": 18,
+         "grade": "GII",
+         "diff": 0.2,
+         "distance": 2500,
+         "surface": "芝",
+         "corners": [
+          3
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 8,
+       "num": 16,
+       "name": "",
+       "odds": 28.1,
+       "pop": 11,
+       "scratched": false,
+       "color": "鹿",
+       "past": [
+        {
+         "place": 7,
+         "field": 14,
+         "grade": "GII",
+         "diff": 0.5,
+         "distance": 2500,
+         "surface": "芝",
+         "corners": [
+          3
+         ]
+        },
+        {
+         "place": 8,
+         "field": 14,
+         "grade": "GII",
+         "diff": 0.5,
+         "distance": 2000,
+         "surface": "芝",
+         "corners": [
+          14
+         ]
+        },
+        {
+         "place": 6,
+         "field": 10,
+         "grade": "L",
+         "diff": 1.1,
+         "distance": 2000,
+         "surface": "芝",
+         "corners": [
+          10
+         ]
+        },
+        {
+         "place": 3,
+         "field": 10,
+         "grade": "GII",
+         "diff": 0.3,
+         "distance": 2000,
+         "surface": "芝",
+         "corners": [
+          10
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 8,
+       "num": 17,
+       "name": "",
+       "odds": 20.3,
+       "pop": 10,
+       "scratched": false,
+       "color": "黒鹿",
+       "past": [
+        {
+         "place": 16,
+         "field": 18,
+         "grade": "GII",
+         "diff": 1.3,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          3
+         ]
+        },
+        {
+         "place": 5,
+         "field": 14,
+         "grade": "GII",
+         "diff": 0.2,
+         "distance": 2500,
+         "surface": "芝",
+         "corners": [
+          1
+         ]
+        },
+        {
+         "place": 1,
+         "field": 15,
+         "grade": "",
+         "diff": 0.2,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          9
+         ]
+        },
+        {
+         "place": 12,
+         "field": 15,
+         "grade": "",
+         "diff": 0.9,
+         "distance": 2000,
+         "surface": "芝",
+         "corners": [
+          15
+         ]
+        }
+       ]
+      },
+      {
+       "waku": 8,
+       "num": 18,
+       "name": "",
+       "odds": 67.4,
+       "pop": 15,
+       "scratched": false,
+       "color": "黒鹿",
+       "past": [
+        {
+         "place": 11,
+         "field": 18,
+         "grade": "GII",
+         "diff": 1,
+         "distance": 2400,
+         "surface": "芝",
+         "corners": [
+          1
+         ]
+        },
+        {
+         "place": 16,
+         "field": 18,
+         "grade": "GI",
+         "diff": 3.1,
+         "distance": 2200,
+         "surface": "芝",
+         "corners": [
+          11
+         ]
+        },
+        {
+         "place": 8,
+         "field": 15,
+         "grade": "GI",
+         "diff": 1.1,
+         "distance": 3200,
+         "surface": "芝",
+         "corners": [
+          1
+         ]
+        },
+        {
+         "place": 14,
+         "field": 15,
+         "grade": "GII",
+         "diff": 2.4,
+         "distance": 2500,
+         "surface": "芝",
+         "corners": [
+          2
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "expected": {
+    "pace": 0.8,
+    "styles": [
+     1,
+     3,
+     2,
+     2,
+     2,
+     1,
+     2,
+     2,
+     2,
+     2,
+     1,
+     2,
+     1,
+     2,
+     1,
+     3,
+     2,
+     1
+    ],
+    "X": [
+     [
+      0.39693333333333336,
+      -0.025,
+      0,
+      0,
+      0.09999999999999998,
+      1
+     ],
+     [
+      0.36938823529411774,
+      -0.0075,
+      0,
+      0,
+      -0.29999999999999993,
+      1
+     ],
+     [
+      0.718891503267974,
+      -0.0025,
+      0,
+      0,
+      -0.09999999999999998,
+      2
+     ],
+     [
+      0.9293978021978023,
+      -0.00875,
+      0,
+      0,
+      -0.09999999999999998,
+      2
+     ],
+     [
+      0.8590446886446889,
+      -0.02,
+      0,
+      0,
+      -0.09999999999999998,
+      3
+     ],
+     [
+      0.5068300653594772,
+      0,
+      0,
+      0,
+      0.09999999999999998,
+      3
+     ],
+     [
+      0.786112605042017,
+      -0.00625,
+      0,
+      0,
+      -0.09999999999999998,
+      4
+     ],
+     [
+      0.8489914529914532,
+      -0.01,
+      0,
+      0,
+      -0.09999999999999998,
+      4
+     ],
+     [
+      0.7705333333333335,
+      0,
+      0,
+      0,
+      -0.09999999999999998,
+      5
+     ],
+     [
+      0.5169082956259428,
+      -0.01875,
+      0,
+      0,
+      -0.09999999999999998,
+      5
+     ],
+     [
+      0.7886901960784314,
+      -0.0075,
+      0,
+      0,
+      0.09999999999999998,
+      6
+     ],
+     [
+      0.6488219780219782,
+      -0.0035000000000000005,
+      0,
+      0,
+      -0.09999999999999998,
+      6
+     ],
+     [
+      0.56069010989011,
+      -0.035,
+      0,
+      0,
+      0.09999999999999998,
+      7
+     ],
+     [
+      0.4183966386554623,
+      -0.005,
+      0,
+      0,
+      -0.09999999999999998,
+      7
+     ],
+     [
+      0.5532453781512606,
+      -0.03375,
+      0,
+      0,
+      0.09999999999999998,
+      7
+     ],
+     [
+      0.5665128205128206,
+      -0.01875,
+      0,
+      0,
+      -0.29999999999999993,
+      8
+     ],
+     [
+      0.503779702650291,
+      -0.00875,
+      0,
+      0,
+      -0.09999999999999998,
+      8
+     ],
+     [
+      0.33674285714285723,
+      -0.00375,
+      0,
+      0,
+      0.09999999999999998,
+      8
+     ]
+    ],
+    "q": [
+     0.015236521049622176,
+     0.07517641989577735,
+     0.04378406873050768,
+     0.13980176331495434,
+     0.11223521843594927,
+     0.010739488556539618,
+     0.13739138808538617,
+     0.07517641989577735,
+     0.13980176331495434,
+     0.00758201761080152,
+     0.06374960407161918,
+     0.021595394333204333,
+     0.006186879277136954,
+     0.05108141351892564,
+     0.021025595010428492,
+     0.028358364800542338,
+     0.03925468231011033,
+     0.0118229977877632
+    ],
+    "p": [
+     0.0071966192817290615,
+     0.01776986793777217,
+     0.049206460200708825,
+     0.2321546382669606,
+     0.11794286874743372,
+     0.01104032020709741,
+     0.14329981047114354,
+     0.09330550234475277,
+     0.1507127194726697,
+     0.0035131002116244887,
+     0.09650855039228523,
+     0.017388209112141964,
+     0.0032965423210340175,
+     0.017564584552480875,
+     0.009939519444419476,
+     0.007862511795569736,
+     0.015903521933229005,
+     0.0053946533069473765
+    ]
+   }
+  }
+ ]
+}

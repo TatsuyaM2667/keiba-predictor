@@ -223,6 +223,11 @@
         <p class="lead muted">JRA の過去のレースを、このアプリの予想モデルでレース前の情報 (確定オッズ・過去 4 走) から予想し、実際の結果と答え合わせしています。結果は自動で増えていきます。</p>
         <div class="stat-grid" id="res-stats"><p class="muted">読み込み中</p></div>
         <section class="card">
+          <header class="card-head"><h3>予想モデルの比較 (交差検証)</h3></header>
+          <div id="res-models"></div>
+          <p class="fine">Kotlin の ModelService が、過去のレースを 1 つずつ外して学習し、外したレースの勝ち馬にどれだけの確率を付けたかを測ったものです (対数損失。小さいほど正確)。市場より 2 標準誤差以上良いモデルだけを採用し、なければ市場 (単勝オッズ) を使います。レースが増えるたびに学習し直します。</p>
+        </section>
+        <section class="card">
           <header class="card-head"><h3>買い方ごとの成績</h3><span class="fine" id="res-count"></span></header>
           <div class="table-wrap"><table class="table" id="res-plans"></table></div>
           <div class="res-chart" id="res-chart"></div>

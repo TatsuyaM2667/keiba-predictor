@@ -9,7 +9,7 @@ import { parseTop, parseRaceList, parseCard, parseScheduleMonth, gradeOf, parseR
 import { plan, cardInterval, MIN, HOUR } from "./sync/src/plan.ts";
 import { tick } from "./sync/src/index.ts";
 import { onRequest } from "./functions/api/[[path]].ts";
-import { features, paceOf, marketProbs, kelly, simulateOrders, probOf, hits, harville, oddsFrom, strategies, commentary, BET_TYPES } from "../src/main/resources/static/js/race-model.js";
+import { features, paceOf, marketProbs, kelly, simulateOrders, probOf, hits, harville, oddsFrom, strategies, commentary, BET_TYPES, fittedProbs, sampleOrders, normSurface } from "../src/main/resources/static/js/race-model.js";
 
 // ---------- 手書きの JRA 風 HTML ----------
 const TOP = `<a href="#" onclick="doAction('/JRADB/accessD.html', 'pw01drl10052026050520261115/AB');">5回東京5日<span>土曜</span></a>
@@ -137,6 +137,18 @@ assert.equal(cm.picks[0].mark, "◎");
 assert(cm.picks[0].reasons[0].includes("前走 GII 1着/12頭"));
 assert(cm.picks[2].reasons.some(t => t.includes("過去の出走がなく")));
 assert(cm.pace.includes("スローペース"));
+
+// ---------- 採用モデル (Kotlin の ModelService が学習したもの) ----------
+const qq = [0.5, 0.3, 0.15, 0.05], XX = qq.map(() => [0.5, -0.01, 0, 0, 0, 4]);
+const marketOnly = { alpha: 1, mean: [0, 0, 0, 0, 0, 0], sd: [1, 1, 1, 1, 1, 1], beta: [0, 0, 0, 0, 0, 0] };
+fittedProbs(marketOnly, XX, qq).forEach((v, i) => assert(Math.abs(v - qq[i]) < 1e-12, "市場を採用したら、勝率 = 市場の確率"));
+assert.equal(fittedProbs(marketOnly, XX, [0.5, 0.5, 0, 0]), null, "オッズのない馬がいたら使わない (手動モデルへ)");
+assert.equal(fittedProbs(null, XX, qq), null);
+const so = sampleOrders(qq, 40000);
+qq.forEach((v, i) => assert(Math.abs(probOf(so, 4, "win", [i]) - v) < 0.01, `くじ引きの 1 着の割合 = 勝率 (${i})`));
+assert(Math.abs(probOf(so, 4, "umatan", [0, 1]) - harville(qq, "umatan", [0, 1])) < 0.01, "2 着も同じモデル (Harville の式) どおり");
+assert.equal(normSurface("芝 内外"), "芝");
+assert.equal(normSurface("ダート"), "ダート");
 
 // ---------- 取得計画 ----------
 const at = (iso) => Date.parse(iso); // JST で書く
