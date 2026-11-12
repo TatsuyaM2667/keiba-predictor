@@ -4,7 +4,12 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { features, paceOf, featureVector, fittedProbs, normSurface } from "../src/main/resources/static/js/race-model.js";
 
-const data = JSON.parse(await readFile(process.argv[2], "utf8"));
+// 出馬表に、結果に載っている馬 (取消・除外を除く) が全部そろっているレースだけを使う (Kotlin の ModelService.isComplete と同じ)
+const complete = (r) => {
+  const onCard = new Set(r.card.runners.map((x) => x.num));
+  return r.result.order.filter((o) => o.num && !/取消|除外/.test(o.status)).every((o) => onCard.has(o.num));
+};
+const data = JSON.parse(await readFile(process.argv[2], "utf8")).filter(complete);
 // 確かめたい場合を含むレースを選ぶ: 新馬 (過去走なし)・障害・ダート・多頭数
 const pick = [
   data.find((r) => r.card.runners.some((x) => !x.past.length)),

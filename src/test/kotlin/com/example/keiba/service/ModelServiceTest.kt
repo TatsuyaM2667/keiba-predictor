@@ -104,6 +104,46 @@ class ModelServiceTest {
         assertEquals(listOf("見送り"), a.betRecommendations.map { it.betType }, "市場どおりの見積もりでは期待値は 1 未満")
     }
 
+    // ---------- 出馬表に抜けのあるレースは使わない ----------
+    private fun pastRace(cardNums: List<Int>, resultNums: List<Int>, payouts: Map<String, List<Payout>> = mapOf("win" to listOf(Payout("1", 350)))) = PastRace(
+        id = "t", card = Card(CardHeader(distance = 2000, surface = "芝"), cardNums.map { CardRunner(waku = it, num = it, name = "馬$it", odds = 2.0 + it, pop = it) }),
+        result = RaceResult(resultNums.mapIndexed { i, n -> Finisher(place = i + 1, num = n) }, payouts),
+    )
+
+    @Test fun incompleteCardsAreExcluded() {
+        assertTrue(ModelService.isComplete(pastRace(listOf(1, 2, 3, 4), listOf(1, 2, 3, 4))))
+        assertTrue(!ModelService.isComplete(pastRace(listOf(1, 2, 3), listOf(1, 2, 3, 4))), "出馬表に 4 番がいない")
+        // 取消・除外の馬は出馬表になくてもよい
+        val withScratch = pastRace(listOf(1, 2, 3, 4), listOf(1, 2, 3, 4)).let { r -> r.copy(result = r.result.copy(order = r.result.order + Finisher(status = "取消", num = 5))) }
+        assertTrue(ModelService.isComplete(withScratch))
+        assertEquals(0, ModelService.prepare(listOf(pastRace(listOf(1, 2, 3, 4), listOf(1, 2, 3, 4, 5)))).size)
+    }
+
+    // ---------- 答え合わせ (予想の成績) ----------
+    @Test fun backtestUsesRealPayouts() {
+        val payouts = mapOf(
+            "win" to listOf(Payout("1", 350)),
+            "umaren" to listOf(Payout("1-2", 900)),
+            "tierce" to listOf(Payout("1-2-3", 4500)),
+        )
+        // オッズは 1 番がいちばん低い → 市場の確率 (採用モデル) でも ◎ は 1 番
+        val r = BacktestService.evaluate(pastRace(listOf(1, 2, 3, 4, 5), listOf(1, 2, 3, 4, 5), payouts), ModelParams())!!
+        assertEquals(1, r.honmei.num)
+        assertEquals(1, r.honmei.place)
+        assertEquals(PlanResult("単勝 ◎", 100, 350), r.plans.first { it.name == "単勝 ◎" })
+        assertEquals(900, r.plans.first { it.name.startsWith("馬連") }.back, "馬連 1-2 が当たり")
+        assertEquals(4500, r.plans.first { it.name.startsWith("3連単") }.back, "3連単 1→2→3 が当たり")
+        assertEquals(0, r.plans.first { it.name == BacktestService.APP_PLAN }.cost, "市場の確率では期待値 1 超えはない (見送り)")
+        assertEquals(null, BacktestService.evaluate(pastRace(listOf(1, 2, 3), listOf(1, 2, 3, 4)), ModelParams()), "抜けのあるレースは評価しない")
+    }
+
+    @Test fun payoutComboOrder() {
+        val p = mapOf("umaren" to listOf(Payout("6-15", 1000)), "umatan" to listOf(Payout("15-6", 2000)))
+        assertEquals(1000, BacktestService.payoutOf(p, "umaren", listOf(15, 6)), "馬連は順番を問わない")
+        assertEquals(2000, BacktestService.payoutOf(p, "umatan", listOf(15, 6)))
+        assertEquals(0, BacktestService.payoutOf(p, "umatan", listOf(6, 15)), "馬単は順番どおり")
+    }
+
     @Test fun top3ProbabilitiesSumToThree() {
         close(PredictorEngine.top3Probabilities(doubleArrayOf(0.4, 0.3, 0.15, 0.1, 0.05)).sum(), 3.0, 1e-9)
     }

@@ -28,7 +28,7 @@ import {
   seeded,
   setTokenProvider,
 } from "./util.js";
-import { marketProbs, kelly, coatName, simulateOrders, strategies, commentary, BET, BET_TYPES, hits, probOf, oddsFrom, modelProbs, planTickets, payoutOf, features, normSurface, featureVector, fittedProbs, sampleOrders } from "./race-model.js";
+import { marketProbs, kelly, coatName, simulateOrders, strategies, commentary, BET, BET_TYPES, hits, probOf, oddsFrom, modelProbs, features, normSurface, featureVector, fittedProbs, sampleOrders } from "./race-model.js";
 
 // Firebase の Web SDK (公式 CDN)。/api/config に設定がある環境 (Cloudflare Pages 版) だけで読み込む
 const FIREBASE_SDK = "https://www.gstatic.com/firebasejs/13.2.0/";
@@ -453,6 +453,19 @@ async function loadJockeys(reset) {
   }
 }
 
+// 騎手と競走馬の相互リンク (Kotlin の LibraryService が Wikipedia 記事のリンクから作る)。
+// 記事名の「 (競走馬)」などの曖昧さ回避は表示では外す
+const linkChips = (heading, titles, kind) =>
+  titles?.length
+    ? `<h3 style="margin:18px 0 0">${heading}</h3><div class="chips">${titles
+        .map((t) => `<button class="chip" type="button" data-${kind}="${esc(t)}">${esc(t.replace(/\s*[(（].*[)）]$/, ""))}</button>`)
+        .join("")}</div>`
+    : "";
+const bindLinkChips = (root) => {
+  $$("[data-link-horse]", root).forEach((b) => b.addEventListener("click", () => openHorse(b.dataset.linkHorse)));
+  $$("[data-link-jockey]", root).forEach((b) => b.addEventListener("click", () => openJockey(b.dataset.linkJockey)));
+};
+
 async function openJockey(title) {
   openSheet(`<div class="detail-body"><p class="muted">読み込み中</p></div>`);
   try {
@@ -475,10 +488,12 @@ async function openJockey(title) {
       <div class="detail-body">
         <h2>${esc(j.name)}</h2>
         <dl class="facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+        ${linkChips(`記事に出てくる競走馬 (${j.horses?.length ?? 0} 頭)`, j.horses, "link-horse")}
         ${summary ? `<p class="summary">${esc(summary)}</p><p class="fine">出典: <a href="${wikiUrl(j.title)}" target="_blank" rel="noopener">Wikipedia「${esc(j.title)}」</a> (CC BY-SA 4.0)</p>` : ""}
         <div class="btn-row" style="margin-top:18px"><a class="btn ghost small" href="${wikiUrl(j.title)}" target="_blank" rel="noopener">${icon("external-link")}Wikipedia</a></div>
       </div>`;
     if (j.image) credit([j.image], $("#detail-credit"), j.imageCaption);
+    bindLinkChips($("#sheet-body"));
   } catch (e) {
     $("#sheet-body").innerHTML = `<div class="detail-body"><p class="muted">読み込めませんでした</p></div>`;
   }
@@ -543,6 +558,7 @@ async function openHorse(title) {
         <div class="meter"><b>${v.rating}</b><div class="bar"><i style="width:${v.rating}%"></i></div><span class="muted" style="font-size:12px">能力値 (参考)</span></div>
         <dl class="facts">${facts.map(([k, val]) => `<dt>${esc(k)}</dt><dd>${esc(val)}</dd>`).join("")}</dl>
         ${h.bigWins.length ? `<h3 style="margin-bottom:10px">主な勝ち鞍</h3><ul class="wins-list">${h.bigWins.map((w) => `<li>${gradeBadge(w.grade)}${esc(w.race)}</li>`).join("")}</ul>` : ""}
+        ${linkChips("この馬が記事に出てくる騎手", v.jockeys, "link-jockey")}
         ${summary ? `<p class="summary">${esc(summary)}</p><p class="fine">出典: <a href="${wikiUrl(h.title)}" target="_blank" rel="noopener">Wikipedia「${esc(h.title)}」</a> (CC BY-SA 4.0)</p>` : ""}
         <div class="btn-row" style="margin-top:18px">
           <button class="btn primary small" id="add-to-sim" type="button">${icon("plus")}シミュレーションに追加</button>
@@ -557,6 +573,7 @@ async function openHorse(title) {
       location.hash = "#/sim";
     });
     $("#fav-btn").addEventListener("click", () => toggleFavorite(h.title));
+    bindLinkChips($("#sheet-body"));
   } catch (e) {
     $("#sheet-body").innerHTML =
       `<div class="detail-body"><p class="muted">読み込めませんでした</p></div>`;
@@ -1311,26 +1328,20 @@ const SERIES = [
   { key: "fav", name: "1番人気の単勝", cls: "s3" },
 ];
 init.results = async () => {
-  const data = await api("/api/live/results").catch(() => null);
-  if (!data) {
-    $("#res-stats").innerHTML = `<p class="muted">この環境では表示できません (Cloudflare 版のデータが必要です)。</p>`;
+  // 計算は Kotlin (BacktestService) が行う。画面は結果を表とグラフにするだけ
+  const [bt] = await Promise.all([api("/api/model/backtest").catch(() => null), loadModelParams()]);
+  if (!bt?.races?.length) {
+    $("#res-stats").innerHTML = `<p class="muted">答え合わせの結果がまだありません。Kotlin 版は起動後に過去のレースを取得して計算し、Web 版は公開のたびに計算します。</p>`;
+    renderModelReport();
     return;
   }
-  if (!data.length) {
-    $("#res-stats").innerHTML = `<p class="muted">答え合わせ用の過去のレースを、JRA 公式サイトから自動で集めています。1 分に 1 件ずつなので、最初の結果が出るまで数十分かかります。</p>`;
-    return;
-  }
-  $("#res-stats").innerHTML = `<p class="muted">${data.length} レースを予想し直しています</p>`;
-  await loadModelParams();
-  const z = state.engines.zig;
-  const rows = [];
-  for (let k = 0; k < data.length; k++) {
-    const e = evalRace(z, data[k]);
-    if (e) rows.push(e);
-    if (k % 20 === 19) await new Promise((r) => setTimeout(r)); // 画面を固めない
-  }
-  rows.sort((a, b) => a.r.date.localeCompare(b.r.date) || a.r.id.localeCompare(b.r.id));
-  state.resRows = rows;
+  const plan = (e, name) => e.plans.find((x) => x.name === name) ?? { cost: 0, back: 0 };
+  state.resRows = bt.races.map((e) => ({
+    ...e,
+    profit: Object.fromEntries([["honmei", "単勝 ◎"], ["app", APP_PLAN], ["fav", FAV_PLAN]].map(([k, n]) => [k, plan(e, n).back - plan(e, n).cost])),
+    appBought: plan(e, APP_PLAN).cost > 0,
+  }));
+  state.backtest = bt;
   renderResults();
   $$("#res-filter button").forEach((b) =>
     b.addEventListener("click", () => {
@@ -1339,69 +1350,26 @@ init.results = async () => {
     }),
   );
 };
-
-function evalRace(z, r) {
-  const { result: res, card } = r;
-  const out = new Set(res.order.filter((o) => /取消|除外/.test(o.status)).map((o) => o.num));
-  const runners = card.runners.filter((x) => !x.scratched && x.num && !out.has(x.num));
-  if (runners.length < 4 || !res.payouts?.win?.length) return null;
-  const cond = { surface: normSurface(card.header.surface), distance: card.header.distance };
-  const { f, pace, p: handP } = modelProbs(z, runners, cond, 20000);
-  const q0 = marketProbs(runners.map((x) => x.odds || 0)).probs;
-  const p = fittedProbs(state.modelParams, f.map((v, i) => featureVector(v, pace, runners[i].waku)), q0) ?? handP;
-  const order = p.map((_, i) => i).sort((i, j) => p[j] - p[i]);
-  const num = (i) => runners[i].num;
-  const placeOf = new Map(res.order.map((o) => [o.num, o.place]));
-  const odds = runners.map((x) => x.odds || 0);
-  const fav = odds.reduce((b, o, i) => (o && (b < 0 || o < odds[b]) ? i : b), -1);
-  const q = marketProbs(odds).probs;
-  const win = (i) => (i >= 0 ? payoutOf(res.payouts, "win", [num(i)]) : 0);
-  const plans = planTickets(order).map((pl) => ({
-    name: pl.name,
-    cost: pl.tickets.length * 100,
-    back: pl.tickets.reduce((s, [type, picks]) => s + payoutOf(res.payouts, type, picks.map(num)), 0),
-  }));
-  const evPicks = runners.map((_, i) => i).filter((i) => odds[i] && kelly(p[i], odds[i]) > 0);
-  plans.push({ name: "アプリの買い目 (期待値 1 超えの単勝)", cost: evPicks.length * 100, back: evPicks.reduce((s, i) => s + win(i), 0) });
-  plans.push({ name: "1番人気の単勝 (比較用)", cost: fav >= 0 ? 100 : 0, back: win(fav) });
-  const w = runners.findIndex((x) => placeOf.get(x.num) === 1);
-  const ll = (v) => -Math.log(Math.max(v, 1e-4));
-  return {
-    r, runners, order, p, placeOf, fav, plans,
-    profit: { honmei: plans[0].back - plans[0].cost, app: plans.at(-2).back - plans.at(-2).cost, fav: plans.at(-1).back - plans.at(-1).cost },
-    winner: w, llModel: w >= 0 ? ll(p[w]) : null, llHand: w >= 0 ? ll(handP[w]) : null, llMarket: w >= 0 ? ll(q[w]) : null,
-  };
-}
+const APP_PLAN = "アプリの買い目 (期待値 1 超えの単勝)";
+const FAV_PLAN = "1番人気の単勝 (比較用)";
 
 function renderResults() {
-  const rows = state.resRows;
-  const n = rows.length;
+  const s = state.backtest.summary;
   const pct = (v) => `${(v * 100).toFixed(1)}%`;
-  const rate = (f) => rows.filter(f).length / n;
-  const at = (e, i) => (i >= 0 ? e.placeOf.get(e.runners[i].num) : null);
-  const ll = rows.filter((e) => e.llModel != null);
-  const mean = (k) => ll.reduce((s, e) => s + e[k], 0) / Math.max(1, ll.length);
   const tile = (label, value, sub) => `<div class="stat card"><span class="label">${label}</span><b class="num">${value}</b><span class="fine">${sub}</span></div>`;
   $("#res-stats").innerHTML = [
-    tile("検証したレース", `${n}`, `${esc(rows[0].r.date)} 〜 ${esc(rows[n - 1].r.date)}`),
-    tile("◎ の勝率", pct(rate((e) => at(e, e.order[0]) === 1)), `1番人気は ${pct(rate((e) => at(e, e.fav) === 1))}`),
-    tile("◎ の 3 着以内率", pct(rate((e) => (at(e, e.order[0]) ?? 99) <= 3)), `1番人気は ${pct(rate((e) => (at(e, e.fav) ?? 99) <= 3))}`),
-    tile("予想の精度 (対数損失)", mean("llModel").toFixed(3), `能力モデル (手動) は ${mean("llHand").toFixed(3)}、市場は ${mean("llMarket").toFixed(3)}。小さいほど正確`),
+    tile("検証したレース", `${s.races}`, `${esc(s.from)} 〜 ${esc(s.to)}${s.excludedRaces ? ` (出馬表に抜けのある ${s.excludedRaces} レースは除外)` : ""}`),
+    tile("◎ の勝率", pct(s.honmeiWin), `1番人気は ${pct(s.favoriteWin)}`),
+    tile("◎ の 3 着以内率", pct(s.honmeiTop3), `1番人気は ${pct(s.favoriteTop3)}`),
+    tile("予想の精度 (対数損失)", s.logLossModel.toFixed(3), `能力モデル (手動) は ${s.logLossHand.toFixed(3)}、市場は ${s.logLossMarket.toFixed(3)}。小さいほど正確`),
   ].join("");
-  $("#res-count").textContent = `${n} レース`;
+  $("#res-count").textContent = `${s.races} レース (${esc(state.backtest.computedAt)} 計算)`;
   renderModelReport();
-  // 買い方ごとの合計
-  const names = rows[0].plans.map((x) => x.name);
-  const sums = names.map((name, k) => {
-    const list = rows.map((e) => e.plans[k]).filter((x) => x.cost);
-    const cost = list.reduce((s, x) => s + x.cost, 0), back = list.reduce((s, x) => s + x.back, 0);
-    return { name, races: list.length, hit: list.filter((x) => x.back > 0).length, cost, back };
-  });
-  $("#res-plans").innerHTML = `<thead><tr><th>買い方</th><th>買ったレース</th><th>的中率</th><th>投資</th><th>払戻</th><th>回収率</th></tr></thead><tbody>${sums
+  $("#res-plans").innerHTML = `<thead><tr><th>買い方</th><th>買ったレース</th><th>的中率</th><th>投資</th><th>払戻</th><th>回収率</th></tr></thead><tbody>${s.plans
     .map((x) => `<tr><td><b>${esc(x.name)}</b></td><td class="num">${x.races}</td><td class="num">${x.races ? pct(x.hit / x.races) : "-"}</td>
       <td class="num">${yen(x.cost)}</td><td class="num">${yen(x.back)}</td><td class="num ${x.back > x.cost ? "plus" : "minus"}">${x.cost ? `${((x.back / x.cost) * 100).toFixed(0)}%` : "-"}</td></tr>`)
     .join("")}</tbody>`;
-  renderResChart(rows);
+  renderResChart(state.resRows);
   renderResTable("all");
 }
 
@@ -1449,7 +1417,7 @@ function renderResChart(rows) {
     const e = rows[i - 1];
     cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
     tip.hidden = false;
-    tip.innerHTML = `<b>${esc(e.r.date)} ${esc(e.r.venueName)}${e.r.race_no}R ${esc(e.r.name)}</b>${SERIES.map((s, k) => `<span><i class="sw ${s.cls}"></i>${s.name} <b class="num">${fmt(cum[k][i])}</b></span>`).join("")}`;
+    tip.innerHTML = `<b>${esc(e.date)} ${esc(e.venueName)}${e.raceNo}R ${esc(e.name)}</b>${SERIES.map((s, k) => `<span><i class="sw ${s.cls}"></i>${s.name} <b class="num">${fmt(cum[k][i])}</b></span>`).join("")}`;
     const left = (x(i) / W) * box.width;
     tip.style.left = `${Math.min(left + 12, box.width - tip.offsetWidth - 4)}px`;
   };
@@ -1459,24 +1427,20 @@ function renderResChart(rows) {
 
 function renderResTable(filter) {
   const rows = [...state.resRows].reverse().filter((e) =>
-    filter === "graded" ? /G/.test(e.r.grade) : filter === "hit" ? (e.placeOf.get(e.runners[e.order[0]].num) ?? 99) <= 3 : true,
+    filter === "graded" ? /G/.test(e.grade) : filter === "hit" ? (e.honmei.place ?? 99) <= 3 : true,
   );
-  const cell = (e, i, mark) => {
-    if (i == null || i < 0) return "-";
-    const h = e.runners[i], pl = e.placeOf.get(h.num);
-    return `${mark ? `<span class="mark ${MARK_CLASS[mark]}">${mark}</span>` : ""}${esc(h.name)}<span class="sub">${h.pop ?? "-"}番人気 → <b class="${pl && pl <= 3 ? "plus" : ""}">${pl ? `${pl}着` : "-"}</b></span>`;
+  const cell = (h, mark) => {
+    if (!h) return "-";
+    return `${mark ? `<span class="mark ${MARK_CLASS[mark]}">${mark}</span>` : ""}${esc(h.name)}<span class="sub">${h.pop ?? "-"}番人気 → <b class="${h.place && h.place <= 3 ? "plus" : ""}">${h.place ? `${h.place}着` : "-"}</b></span>`;
   };
   const money = (v) => `<span class="${v > 0 ? "plus" : v < 0 ? "minus" : ""}">${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v).toLocaleString()}</span>`;
   $("#res-table").innerHTML = `<thead><tr><th>日付</th><th>レース</th><th>◎</th><th>◯</th><th>1番人気</th><th>勝ち馬</th><th>単勝</th><th>◎の単勝</th><th>アプリの買い目</th></tr></thead><tbody>${rows
     .slice(0, 300)
-    .map((e) => {
-      const wi = e.winner;
-      return `<tr><td class="num">${esc(e.r.date.slice(5).replace("-", "/"))}</td><td>${gradeBadge(e.r.grade)} ${esc(e.r.venueName)}${e.r.race_no}R<span class="sub">${esc(e.r.name)}</span></td>
-      <td>${cell(e, e.order[0], "◎")}</td><td>${cell(e, e.order[1], "◯")}</td><td>${cell(e, e.fav)}</td>
-      <td>${wi >= 0 ? `${esc(e.runners[wi].name)}<span class="sub">${e.runners[wi].pop ?? "-"}番人気</span>` : "-"}</td>
-      <td class="num">${(e.r.result.payouts.win[0]?.yen ?? 0).toLocaleString()}円</td>
-      <td class="num">${money(e.profit.honmei)}</td><td class="num">${e.plans.at(-2).cost ? money(e.profit.app) : `<span class="muted">見送り</span>`}</td></tr>`;
-    })
+    .map((e) => `<tr><td class="num">${esc(e.date.slice(5).replace("-", "/"))}</td><td>${gradeBadge(e.grade)} ${esc(e.venueName)}${e.raceNo}R<span class="sub">${esc(e.name)}</span></td>
+      <td>${cell(e.honmei, "◎")}</td><td>${cell(e.taiko, "◯")}</td><td>${cell(e.favorite)}</td>
+      <td>${e.winner ? `${esc(e.winner.name)}<span class="sub">${e.winner.pop ?? "-"}番人気</span>` : "-"}</td>
+      <td class="num">${e.winPayout.toLocaleString()}円</td>
+      <td class="num">${money(e.profit.honmei)}</td><td class="num">${e.appBought ? money(e.profit.app) : `<span class="muted">見送り</span>`}</td></tr>`)
     .join("") || `<tr><td colspan="9" class="muted">該当するレースがありません</td></tr>`}</tbody>`;
 }
 

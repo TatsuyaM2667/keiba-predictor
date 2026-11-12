@@ -371,6 +371,9 @@ export const onRequest = async ({ request, env, params }: Ctx): Promise<Response
       case "races": return json(await d("races"), 200, 3600);
       // 採用した予想モデル (ビルド時に Kotlin の ModelService が過去のレースで学習・交差検証して書き出したもの)
       case "model/params": return json(await d("model-params"), 200, 3600);
+      // 予想の成績 (ビルド時に Kotlin の BacktestService が計算して書き出したもの)
+      case "model/backtest": return json(await d("backtest"), 200, 3600);
+      case "learn": return json(await d("learn"), 200, 3600);
     }
     const m = path.match(/^races\/([\w-]+)(\/analysis)?$/);
     if (m) {

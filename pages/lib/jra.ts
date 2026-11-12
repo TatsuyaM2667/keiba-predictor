@@ -144,7 +144,11 @@ export function parseCard(html: string) {
     const jockeyCell = /<td class="jockey">([\s\S]*?)<\/td>/.exec(row)?.[1] ?? "";
     const age = text(/class="age">([^<]*)</.exec(jockeyCell)?.[1] ?? "").split("/");
     const weight = /class="cell weight">(\d+)kg(?:<span class="transition">\(([-+]?\d+)\))?/.exec(horse);
-    const name = text(/class="name"><a[^>]*>([^<]+)<\/a>/.exec(horse)?.[1] ?? /class="name">([^<]+)</.exec(horse)?.[1] ?? "");
+    // 馬名の欄には、名前の前に印 (外国産馬の「外」など) の画像や span が入ることがある。
+    // 欄の中の最初のリンクの文字を名前にする (リンクがなければ、印を除いた文字)。
+    // 以前は「欄の直後がリンク」の形しか読めず、印のある馬が出馬表から抜けていた (48 レース中 30 レースで 1〜5 頭)
+    const nameCell = /class="name"[^>]*>([\s\S]*?)<\/div>/.exec(horse)?.[1] ?? "";
+    const name = text(/<a[^>]*>([^<]+)<\/a>/.exec(nameCell)?.[1] ?? nameCell.replace(/<span[^>]*>[\s\S]*?<\/span>/g, ""));
     if (!name) continue;
     runners.push({
       waku: num(/waku\/(\d)\.png/.exec(row)?.[1]),

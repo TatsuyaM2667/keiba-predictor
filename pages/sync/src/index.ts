@@ -85,6 +85,11 @@ export async function tick(env: Env, now = Date.now()) {
       const card = parseCard(await page(task.cname));
       if (!card.runners.length) throw new Error(`${task.cname}: 出走馬が見つかりません (ページの形式が変わった可能性)`);
       await db.prepare("UPDATE jra_races SET card = ?, card_at = ? WHERE id = ?").bind(JSON.stringify(card), now, task.id).run();
+      // 出馬表の頭数がレース一覧の頭数より少なければ、読み取りに失敗した馬がいる (保存はして、警告を残す)
+      const row = await db.prepare("SELECT field FROM jra_races WHERE id = ?").bind(task.id).first<{ field: number | null }>();
+      if (row?.field && card.runners.length < row.field) {
+        await setState(env, "last_warning", JSON.stringify({ at: now, id: task.id, message: `出馬表が ${card.runners.length} 頭しか読めません (レース一覧では ${row.field} 頭)` }));
+      }
     } else if (task.kind === "results_top") {
       const list = parseResultTop(await post("/JRADB/accessS.html", "cname=pw01sli00/AF"));
       if (!list.length) throw new Error("結果一覧: レースが見つかりません (ページの形式が変わった可能性)");

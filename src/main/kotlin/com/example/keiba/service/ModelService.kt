@@ -1,5 +1,6 @@
 package com.example.keiba.service
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.net.URI
@@ -31,9 +32,14 @@ import kotlin.math.sqrt
 @Serializable data class CardRunner(val waku: Int? = null, val num: Int? = null, val name: String = "", val odds: Double? = null, val pop: Int? = null, val scratched: Boolean = false, val past: List<PastRun> = emptyList())
 @Serializable data class CardHeader(val name: String = "", val grade: String = "", val distance: Int? = null, val surface: String = "")
 @Serializable data class Card(val header: CardHeader = CardHeader(), val runners: List<CardRunner> = emptyList())
-@Serializable data class Finisher(val place: Int? = null, val status: String = "", val num: Int? = null)
-@Serializable data class RaceResult(val order: List<Finisher> = emptyList())
-@Serializable data class PastRace(val id: String, val date: String = "", val card: Card, val result: RaceResult)
+@Serializable data class Finisher(val place: Int? = null, val status: String = "", val num: Int? = null, val name: String = "", val pop: Int? = null)
+/** 払戻金 1 件 (combo = 組番 "6-15"、yen = 100 円あたり) */
+@Serializable data class Payout(val combo: String, val yen: Int)
+@Serializable data class RaceResult(val order: List<Finisher> = emptyList(), val payouts: Map<String, List<Payout>> = emptyMap())
+@Serializable data class PastRace(
+    val id: String, val date: String = "", val venueName: String = "", @SerialName("race_no") val raceNo: Int = 0,
+    val name: String = "", val grade: String = "", val card: Card, val result: RaceResult,
+)
 
 /** 1 頭分の特徴量 (race-model.js の features と同じ) */
 data class Features(val form: Double, val distFit: Double, val surfFit: Double, val style: Int, val mu: Double, val runs: Int)
@@ -56,6 +62,7 @@ data class ModelParams(
     val beta: List<Double> = List(FEATURE_NAMES.size) { 0.0 },
     val report: List<ModelScore> = emptyList(),
     val note: String = "",
+    val excludedRaces: Int = 0, // 出馬表に抜けがあり、使わなかったレースの数
 )
 
 val FEATURE_NAMES = listOf("form", "distFit", "unfamiliarSurface", "noRuns", "paceStyle", "waku")
@@ -127,6 +134,10 @@ class ModelService(private val resultsUrl: String? = null) {
     @Volatile var params: ModelParams = bundled()
         private set
 
+    /** 予想の成績 (学習し直すたびに、同じ過去のレースで計算し直す)。まだ学習していなければ null */
+    @Volatile var backtest: Backtest? = null
+        private set
+
     /** アプリに同梱した、最後に学習した結果 (ネットにつながらなくても使える) */
     private fun bundled(): ModelParams =
         javaClass.getResourceAsStream("/data/model-params.json")?.bufferedReader()?.use { json.decodeFromString(ModelParams.serializer(), it.readText()) } ?: ModelParams(note = "まだ学習していません (市場の確率を使います)")
@@ -139,13 +150,26 @@ class ModelService(private val resultsUrl: String? = null) {
         val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build()
         val res = client.send(HttpRequest.newBuilder(URI(url)).timeout(Duration.ofSeconds(30)).GET().build(), HttpResponse.BodyHandlers.ofString())
         check(res.statusCode() == 200) { "学習データを取得できませんでした (HTTP ${res.statusCode()})" }
-        params = fit(prepare(loadPastRaces(res.body())))
+        val races = loadPastRaces(res.body())
+        val excluded = races.count { !isComplete(it) }
+        params = fit(prepare(races)).copy(excludedRaces = excluded)
+        backtest = BacktestService.compute(races, params)
         return params
     }
 
     companion object {
+        /**
+         * 出馬表に、結果に載っている馬 (取消・除外を除く) が全部そろっているか。
+         * 出馬表の読み取りで抜けた馬がいると、市場の確率 (オッズの逆数の和で割る) も勝ち馬の確率もずれるので、
+         * そのレースは学習にも答え合わせにも使わない。
+         */
+        fun isComplete(r: PastRace): Boolean {
+            val onCard = r.card.runners.mapNotNull { it.num }.toSet()
+            return r.result.order.filter { it.num != null && !Regex("取消|除外").containsMatchIn(it.status) }.all { it.num in onCard }
+        }
+
         /** 過去のレース → 学習用。取消・除外と、オッズのない馬は外す。4 頭未満・勝ち馬不明のレースは使わない */
-        fun prepare(races: List<PastRace>): List<TrainRace> = races.mapNotNull { r ->
+        fun prepare(races: List<PastRace>): List<TrainRace> = races.filter(::isComplete).mapNotNull { r ->
             val out = r.result.order.filter { Regex("取消|除外").containsMatchIn(it.status) }.mapNotNull { it.num }.toSet()
             val run = r.card.runners.filter { !it.scratched && it.num != null && it.num !in out && (it.odds ?: 0.0) > 0 }
             val winNum = r.result.order.firstOrNull { it.place == 1 }?.num
@@ -227,22 +251,24 @@ class ModelService(private val resultsUrl: String? = null) {
             return x
         }
 
-        /** 今のアプリの手動モデル (Zig の montecarlo.zig と同じ計算) の勝率。比較のためだけに使う */
-        fun handProbs(r: TrainRace, runs: Int = 20000, seed: UInt = 20261109u): DoubleArray {
+        fun handProbs(r: TrainRace, runs: Int = 20000, seed: UInt = 20261109u) = handProbs(r.features, r.pace, runs, seed)
+
+        /** 今のアプリの手動モデル (Zig の montecarlo.zig と同じ計算) の勝率。比較と、オッズがないときに使う */
+        fun handProbs(features: List<Features>, pace: Double, runs: Int = 20000, seed: UInt = 20261109u): DoubleArray {
             var rng = seed
             fun next(): Double {
                 rng = rng xor (rng shl 13); rng = rng xor (rng shr 17); rng = rng xor (rng shl 5)
                 return (rng shr 8).toDouble() / 16777216.0
             }
             fun styleMul(s: Int) = when (s) {
-                0 -> 1.04 - (r.pace - 1.0) * 0.30
-                1 -> 1.02 - (r.pace - 1.0) * 0.12
-                2 -> 1.00 + (r.pace - 1.0) * 0.15
-                else -> 0.98 + (r.pace - 1.0) * 0.30
+                0 -> 1.04 - (pace - 1.0) * 0.30
+                1 -> 1.02 - (pace - 1.0) * 0.12
+                2 -> 1.00 + (pace - 1.0) * 0.15
+                else -> 0.98 + (pace - 1.0) * 0.30
             }
-            val n = min(18, r.features.size)
-            val base = DoubleArray(n) { i -> (Math.round(r.features[i].mu * 1000) / 10.0 / 100.0) * styleMul(r.features[i].style) * (0.85 + 0.15 * 0.7) }
-            val wins = IntArray(r.features.size)
+            val n = min(18, features.size)
+            val base = DoubleArray(n) { i -> (Math.round(features[i].mu * 1000) / 10.0 / 100.0) * styleMul(features[i].style) * (0.85 + 0.15 * 0.7) }
+            val wins = IntArray(features.size)
             repeat(runs) {
                 var best = 0
                 var bestScore = -1e9

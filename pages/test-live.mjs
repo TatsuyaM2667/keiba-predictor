@@ -23,8 +23,9 @@ const past = (place, field, corner, dist, diff) => `<td class="past p1"><div cla
   <div class="name">毎日王冠</div><div class="r_class"><img src="icon_grade_s_g2.png"></div><div class="place">${place}</div><div class="max">${field}</div>
   <div class="dist">${dist}芝</div><div class="time">1:45.3</div><div class="condition">良</div><div class="f3">3F 33.5</div>
   <ul class="corner_list"><li>${corner}</li><li>${corner}</li></ul><div class="fin"><span class="time">(${diff})</span></div></td>`;
-const runner = (n, name, odds, pastHtml, extra = "") => `<td class="waku"><img src="/img/waku/${n}.png"></td><td class="num">${n}<span class="icon">B</span></td>
-  <td class="horse"><div class="name"><a href="#">${name}</a></div>${extra}
+// mark を渡すと、名前の前に印 (外国産馬の「外」など) が入った馬になる
+const runner = (n, name, odds, pastHtml, extra = "", mark = "") => `<td class="waku"><img src="/img/waku/${n}.png"></td><td class="num">${n}<span class="icon">B</span></td>
+  <td class="horse"><div class="name_line"><div class="name">${mark}<a href="#">${name}</a></div></div>${extra}
   <div class="odds_line"><span class="num"><strong${n === 1 ? ' class="red"' : ""}>${odds}</strong></span><span class="pop_rank">(${n}番人気)</span></div>
   <p class="trainer"><a>調教師${n}</a></p><p class="division">(美浦)</p><p class="sire"><span>父：</span>父${n}</p><p class="mare"><span>母：</span>母${n}</p><p>(母の父：母父${n})</p>
   <div class="cell weight">480kg<span class="transition">(+4)</span></div></td>
@@ -35,7 +36,7 @@ const CARD = `<h2><span class="race_name">テスト記念<span class="grade_icon
   <div>発走時刻：<strong>15時40分</strong></div><table><tbody><tr>` +
   runner(1, "テストホースア", "2.1", past(1, 12, 1, 1800, -0.2)) +
   runner(2, "テストホースイ", "4.5", past(6, 12, 6, 2400, 0.8)) +
-  runner(3, "テストホースウ", "9.0", "");
+  runner(3, "テストホースウ", "9.0", "", "", '<span class="icon"><img src="/JRADB/img/icon_marugai.png" alt="外国産馬"></span>');
 const SCHEDULE = [{ month: "11", data: [
   { date: "15", day: "土", info: [{ race: [{ name: "5回東京5日" }, { name: "5回京都5日" }], gradeRace: [{ name: "テスト記念", grade: "G2", pos: "1" }, { name: "テスト障害", grade: "J・G1", pos: "2" }] }] },
   { date: "16", day: "日", info: [{ race: [{ name: "5回東京6日" }], gradeRace: [] }] },
@@ -68,7 +69,8 @@ assert.deepEqual(
 );
 const card = parseCard(CARD);
 assert.deepEqual(card.header, { name: "テスト記念", edition: "第64回", grade: "GII", cond: "3歳以上 オープン", distance: 2000, surface: "芝", turn: "左", postTime: "15:40" });
-assert.equal(card.runners.length, 3);
+assert.equal(card.runners.length, 3, "名前の前に印のある馬も読む");
+assert.equal(card.runners[2].name, "テストホースウ");
 const [a1, a2, a3] = card.runners;
 assert.deepEqual([a1.num, a1.waku, a1.odds, a1.pop, a1.carry, a1.bodyWeight, a1.weightDiff, a1.color, a1.jockey, a1.damSire], [1, 1, 2.1, 1, 57, 480, 4, "黒鹿", "騎手1", "母父1"]);
 assert.equal(a2.odds, 4.5, "人気が赤字でない馬のオッズ");

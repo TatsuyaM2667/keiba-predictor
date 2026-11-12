@@ -102,6 +102,33 @@ class WikiClient {
         return out
     }
 
+    // 記事本文から張られているリンク先 (prop=links)。騎手の記事 → そこに出てくる競走馬、の突き合わせに使う。
+    // 50 記事ずつ要求し、リンクが多くて 1 回に収まらないときは plcontinue で続きを取る。
+    /** 各記事からリンクしている記事名 (標準名前空間のみ) */
+    suspend fun links(titles: List<String>, onProgress: (Int) -> Unit = {}): Map<String, List<String>> {
+        val out = HashMap<String, MutableList<String>>()
+        titles.chunked(50).forEachIndexed { i, batch ->
+            var cont: String? = null
+            do {
+                val p = mutableMapOf(
+                    "action" to "query", "prop" to "links", "plnamespace" to "0", "pllimit" to "max",
+                    "titles" to batch.joinToString("|"), "format" to "json", "formatversion" to "2"
+                )
+                cont?.let { p["plcontinue"] = it }
+                val j = getJson(api, p)
+                j["query"]?.jsonObject?.get("pages")?.jsonArray?.forEach { page ->
+                    val o = page.jsonObject
+                    val list = out.getOrPut(o["title"]!!.jsonPrimitive.content) { mutableListOf() }
+                    o["links"]?.jsonArray?.forEach { list += it.jsonObject["title"]!!.jsonPrimitive.content }
+                }
+                cont = j["continue"]?.jsonObject?.get("plcontinue")?.jsonPrimitive?.content
+                delay(150)
+            } while (cont != null)
+            onProgress(minOf((i + 1) * 50, titles.size))
+        }
+        return out
+    }
+
     // 競走馬: 記事一覧 → 冒頭セクション取得 → Wikitext.parseHorse で解析。
     // 1 記事の解析に失敗しても全体を止めないよう runCatching で包み、失敗した記事は捨てる。
     suspend fun fetchHorses(onProgress: (String) -> Unit = {}): List<HorseEntry> {

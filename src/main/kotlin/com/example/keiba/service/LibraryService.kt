@@ -35,7 +35,8 @@ data class HorseView(
     val rating: Int,          // 戦績から算出した参考能力値 (40〜99)
     val surface: String,      // 芝 / ダート / 芝・ダート / 不明 (勝った重賞の馬場から推定)
     val bestDistance: Int?,   // 勝った重賞の平均距離
-    val gradedWins: Int
+    val gradedWins: Int,
+    val jockeys: List<String> = emptyList() // この馬にリンクしている騎手の記事名 (JockeyEntry.horses の逆引き)
 )
 
 @Serializable
@@ -133,7 +134,10 @@ class LibraryService(private val wiki: WikiClient = WikiClient()) {
         val media = wiki.fetchCourseMedia(CourseCatalog.all.map { it.qid })
         val races = wiki.fetchRaces { progress = it }
         val horses = wiki.fetchHorses { progress = it }
-        val jockeys = wiki.fetchJockeys { progress = it }
+        val horseTitles = horses.mapTo(HashSet()) { it.title }
+        val fetched = wiki.fetchJockeys { progress = it }
+        val links = wiki.links(fetched.map { it.title }) { progress = "騎手と競走馬の対応 $it / ${fetched.size}" }
+        val jockeys = fetched.map { j -> j.copy(horses = links[j.title].orEmpty().filter { it in horseTitles }.distinct()) }
         progress = "完了"
         return LibrarySnapshot(Instant.now().toString(), horses.sortedBy { it.title }, races.sortedBy { it.title }, media, jockeys.sortedBy { it.title })
     }
@@ -152,6 +156,8 @@ class LibraryService(private val wiki: WikiClient = WikiClient()) {
     private fun buildViews(s: LibrarySnapshot): List<HorseView> {
         val raceByName = HashMap<String, RaceEntry>()
         s.races.forEach { r -> raceByName.putIfAbsent(r.name, r); raceByName.putIfAbsent(r.title, r) }
+        val ridersOf = HashMap<String, MutableList<String>>()
+        s.jockeys.forEach { j -> j.horses.forEach { ridersOf.getOrPut(it) { mutableListOf() } += j.title } }
         return s.horses.map { h ->
             val won = h.bigWins.mapNotNull { raceByName[it.race] ?: raceByName[it.race.substringBefore(" (")] }
             val turf = won.count { it.surface.contains("芝") }
@@ -163,7 +169,7 @@ class LibraryService(private val wiki: WikiClient = WikiClient()) {
                 else -> "不明"
             }
             val dists = won.mapNotNull { it.distance }
-            HorseView(h, 0, surface, dists.takeIf { it.isNotEmpty() }?.average()?.roundToInt(), h.bigWins.size)
+            HorseView(h, 0, surface, dists.takeIf { it.isNotEmpty() }?.average()?.roundToInt(), h.bigWins.size, ridersOf[h.title].orEmpty())
         }.let(::withPercentileRating)
     }
 

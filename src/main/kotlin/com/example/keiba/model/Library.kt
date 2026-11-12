@@ -58,6 +58,7 @@ data class JockeyEntry(
     val g1Wins: Int? = null,        // GI 勝利数
     val region: String = "",        // 中央 / 地方 / 海外 / 不明 (最後の所属団体から)
     val active: Boolean = false,
+    val horses: List<String> = emptyList() // 記事の中でリンクしている競走馬 (名鑑にいる馬の記事名)
 )
 
 /** 日本語版 Wikipedia の {{競馬の競走}} 記事 1 件 */

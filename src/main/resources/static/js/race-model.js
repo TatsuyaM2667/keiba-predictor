@@ -294,11 +294,3 @@ export function planTickets(order) {
   ].filter((p) => p.tickets.every(([, picks]) => picks.every((i) => i != null)));
 }
 
-/**
- * 実際の払戻金で、馬券 1 点 (100 円) がいくら戻ったか。nums は馬番。
- * JRA の払戻表の組番は、順番を問わない券種は小さい順、問う券種は着順どおりに「-」でつないである。
- */
-export function payoutOf(payouts, type, nums) {
-  const key = (BET[type].ordered ? nums : [...nums].sort((a, b) => a - b)).join("-");
-  return (payouts[type] || []).find((x) => x.combo.replace(/\s/g, "") === key)?.yen ?? 0;
-}

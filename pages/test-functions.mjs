@@ -50,7 +50,14 @@ assert(r.body.total > 0 && r.body.items.every(j => j.region === "中央" && j.ac
 assert(r.body.items.every((j, i, a) => !i || (a[i - 1].g1Wins ?? -1) >= (j.g1Wins ?? -1)), "GI 勝利数の多い順");
 r = await call("/api/jockeys/detail?title=" + encodeURIComponent("武豊"));
 assert.equal(r.body.jockey.name, "武豊");
+assert(r.body.jockey.horses.includes("キタサンブラック"), "騎手 → 記事に出てくる競走馬");
+r = await call("/api/horses/detail?title=" + encodeURIComponent("キタサンブラック"));
+assert(r.body.view.jockeys.includes("武豊"), "競走馬 → 騎手 (逆引き)");
 assert.equal((await call("/api/jockeys/detail?title=xxxx")).status, 404);
+
+r = await call("/api/learn");
+assert.equal(r.body.length, 9, "はじめての競馬は 9 章 (Kotlin の LearnService)");
+assert(r.body.every((c) => c.html && c.quiz.every((q) => q.answer < q.options.length)));
 
 r = await call("/api/catalog/races?grade=GI&limit=500");
 assert(r.body.total > 0 && r.body.items.every(x => x.grade === "GI"), "GI は完全一致");
@@ -67,6 +74,8 @@ assert.equal(r.body.length, 3);
 r = await call("/api/model/params");
 assert(["market", "market_power", "market_features"].includes(r.body.selected), "採用モデル");
 assert.equal(r.body.beta.length, r.body.features.length);
+r = await call("/api/model/backtest");
+assert(r.body.races.length > 0 && r.body.summary.races === r.body.races.length, "予想の成績 (Kotlin が計算)");
 r = await call("/api/races/arima-2026/analysis");
 assert(Math.abs(r.body.predictions.reduce((s, p) => s + p.winProbability, 0) - 100) < 0.5, "サンプルの勝率の合計は 100%");
 r = await call("/api/races/arima-2026/analysis");

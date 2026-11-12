@@ -1,8 +1,8 @@
 {
     "version": 1,
     "fittedAt": "2026-11-12",
-    "races": 41,
-    "runners": 499,
+    "races": 18,
+    "runners": 225,
     "selected": "market",
     "alpha": 1.0,
     "features": [
@@ -41,15 +41,15 @@
         {
             "name": "uniform",
             "label": "全頭同じ確率",
-            "logLoss": 2.4639165590445242,
-            "vsMarket": 0.6657714857317465,
-            "vsMarketSe": 0.17772607415679695,
+            "logLoss": 2.4892736628392824,
+            "vsMarket": 0.8955820128925139,
+            "vsMarketSe": 0.2344112500476844,
             "note": ""
         },
         {
             "name": "market",
             "label": "市場 (単勝オッズそのまま)",
-            "logLoss": 1.798145073312778,
+            "logLoss": 1.5936916499467684,
             "vsMarket": null,
             "vsMarketSe": null,
             "note": ""
@@ -57,35 +57,36 @@
         {
             "name": "hand",
             "label": "今の手動モデル (Zig と同じ・係数は手で決めた)",
-            "logLoss": 2.104800645857954,
-            "vsMarket": 0.30665557254517645,
-            "vsMarketSe": 0.17557404890734604,
+            "logLoss": 2.074087074499602,
+            "vsMarket": 0.48039542455283357,
+            "vsMarketSe": 0.27071034256554966,
             "note": ""
         },
         {
             "name": "features",
             "label": "特徴量だけで学習 (交差検証)",
-            "logLoss": 2.1368751991398325,
-            "vsMarket": 0.3387301258270549,
-            "vsMarketSe": 0.14958826866947242,
+            "logLoss": 2.297125724578643,
+            "vsMarket": 0.7034340746318749,
+            "vsMarketSe": 0.20544851424577845,
             "note": ""
         },
         {
             "name": "market_power",
             "label": "市場の確率を補正 (q^α・交差検証)",
-            "logLoss": 1.8303569833495414,
-            "vsMarket": 0.03221191003676349,
-            "vsMarketSe": 0.006649232362435634,
+            "logLoss": 1.6470130172403499,
+            "vsMarket": 0.05332136729358174,
+            "vsMarketSe": 0.06649170929877059,
             "note": ""
         },
         {
             "name": "market_features",
             "label": "市場 + 特徴量 (交差検証)",
-            "logLoss": 1.8330804346022795,
-            "vsMarket": 0.03493536128950128,
-            "vsMarketSe": 0.048766276661093004,
+            "logLoss": 1.7754180513984996,
+            "vsMarket": 0.1817264014517312,
+            "vsMarketSe": 0.08001724432483247,
             "note": ""
         }
     ],
-    "note": "市場 (単勝オッズ) より、はっきり良いモデルはまだありません。勝率は市場の確率を使います"
+    "note": "市場 (単勝オッズ) より、はっきり良いモデルはまだありません。勝率は市場の確率を使います",
+    "excludedRaces": 30
 }

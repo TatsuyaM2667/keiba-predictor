@@ -5,6 +5,7 @@ import com.example.keiba.service.RaceService
 import com.example.keiba.service.HorseView
 import com.example.keiba.service.LibraryService
 import com.example.keiba.service.ModelParams
+import com.example.keiba.service.LearnService
 import com.example.keiba.service.ModelService
 import com.example.keiba.service.PredictorEngine
 import com.example.keiba.service.WeatherService
@@ -81,11 +82,18 @@ fun main(args: Array<String>) {
     }
     // `--fit [file]`: 過去の実際のレースで予想モデルを学習・評価し、結果を表示して file (同梱データ) に書いて終了
     if (args.firstOrNull() == "--fit") {
-        val p = ModelService(RESULTS_URL).refit()
+        val fitter = ModelService(RESULTS_URL)
+        val p = fitter.refit()
         val out = java.io.File(args.getOrNull(1) ?: "src/main/resources/data/model-params.json")
         out.writeText(Json { prettyPrint = true; encodeDefaults = true }.encodeToString(p) + "\n")
         printModelReport(p)
         println("書き出し: ${out.absolutePath}")
+        fitter.backtest?.summary?.let { s ->
+            println("\n予想の成績 (${s.races} レース、${s.from} 〜 ${s.to})")
+            println("  ◎ の勝率 %.1f%% / 3 着以内 %.1f%%   1 番人気 %.1f%% / %.1f%%".format(s.honmeiWin * 100, s.honmeiTop3 * 100, s.favoriteWin * 100, s.favoriteTop3 * 100))
+            println("  対数損失: 採用モデル %.4f / 手動モデル %.4f / 市場 %.4f".format(s.logLossModel, s.logLossHand, s.logLossMarket))
+            for (t in s.plans) println("  %-30s %3d レース 的中 %3d  回収率 %s".format(t.name, t.races, t.hit, if (t.cost > 0) "%.0f%%".format(t.back * 100.0 / t.cost) else "-"))
+        }
         return
     }
 
@@ -213,7 +221,12 @@ fun main(args: Array<String>) {
             }
             get("/api/courses") { call.respond(library.courses()) }
             // 採用した予想モデル (画面の race-model.js がこれで勝率を出す) と、交差検証の成績
+            get("/api/learn") { call.respond(LearnService.chapters) }
             get("/api/model/params") { call.respond(modelService.params) }
+            // 予想の成績 (過去のレースの答え合わせ)。学習し直すたびに計算し直す
+            get("/api/model/backtest") {
+                modelService.backtest?.let { call.respond(it) } ?: call.respond(HttpStatusCode.NotFound, mapOf("error" to "まだ計算していません (起動直後か、過去のレースを取得できませんでした)"))
+            }
             // 25 場の座標を Open-Meteo にまとめて渡し、現在の天気を 1 回のリクエストで取る。
             // 座標が分からない競馬場は除外する。
             get("/api/weather") {
@@ -458,7 +471,9 @@ fun exportStatic(dir: java.io.File) = runBlocking {
     fun write(name: String, text: String) = java.io.File(dir, name).writeText(text)
     write("horses.json", json.encodeToString(library.allHorses()))
     write("model-params.json", json.encodeToString(model.params))
+    model.backtest?.let { write("backtest.json", json.encodeToString(it)) }
     write("jockeys.json", json.encodeToString(library.allJockeys()))
+    write("learn.json", json.encodeToString(LearnService.chapters))
     write("races-catalog.json", json.encodeToString(library.allRaces()))
     write("courses.json", json.encodeToString(library.courses()))
     write("status.json", json.encodeToString(library.status()))
