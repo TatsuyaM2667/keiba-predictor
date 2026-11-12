@@ -69,6 +69,53 @@ class WikitextTest {
         assertEquals("JpnIII", Wikitext.normalizeGrade("Jpn3"))
     }
 
+    // 騎手: 実際の記事と同じ形 (現役・中央) と (引退・地方 → 中央)
+    @Test fun parsesActiveJockey() {
+        val j = Wikitext.parseJockey("武豊", """
+            {{騎手
+            |画 =[[画像:Yutaka Take 2024.10.20.jpg|250px]]
+            |名 = 武豊
+            |国 = {{JPN}}
+            |出 = [[滋賀県]][[栗太郡]]栗東町
+            |生 = {{生年月日と年齢|1969|3|15}}
+            |身 = 170 [[センチメートル|cm]]<ref name = "a"/>
+            |団 = JRA・[[栗東トレーニングセンター]]<ref name = "a"/>
+            |初 = 1987年3月1日
+            |引 =
+            |重 = 522勝（中央372勝、地方124勝、海外26勝）
+            |G1 = 129勝（中央87勝、地方33勝、海外9勝）
+            |通 = 25794戦4669勝（中央）<br>949戦212勝（地方）
+            }}
+        """.trimIndent())!!
+        assertEquals("武豊", j.name)
+        assertEquals("Yutaka_Take_2024.10.20.jpg", j.image)
+        assertEquals(1969, j.birthYear)
+        assertEquals(170.0, j.heightCm)
+        assertEquals(1987, j.debutYear)
+        assertEquals(25794, j.starts)
+        assertEquals(4669, j.wins)
+        assertEquals(522, j.gradedWins)
+        assertEquals(129, j.g1Wins)
+        assertEquals("中央", j.region)
+        assertEquals(true, j.active)
+    }
+
+    @Test fun parsesRetiredJockeyFromLastAffiliation() {
+        val j = Wikitext.parseJockey("安藤勝己", """
+            {{騎手
+            |名 = 安藤 勝己
+            |生 = {{生年月日と年齢|1960|3|28}}
+            |団 = [[岐阜県地方競馬組合]]<br />[[日本中央競馬会]]
+            |引 = 2013年1月31日
+            |通 = 20852戦4464勝
+            }}
+        """.trimIndent())!!
+        assertEquals("中央", j.region, "最後の所属で決める")
+        assertEquals(false, j.active)
+        assertEquals(4464, j.wins)
+        assertNull(Wikitext.parseJockey("馬", "{{競走馬\n|名 = A\n}}"), "騎手の記事でなければ null")
+    }
+
     @Test fun parsesYenOnly() {
         assertEquals(10000L, Wikitext.manYen("1億円"))
         assertNull(Wikitext.manYen("$1,000,000"))

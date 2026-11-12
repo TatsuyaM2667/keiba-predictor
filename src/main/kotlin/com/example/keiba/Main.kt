@@ -193,6 +193,17 @@ fun main(args: Array<String>) {
                 val view = library.horse(title) ?: return@get call.respond(HttpStatusCode.NotFound)
                 call.respond(HorseDetail(view, library.summary(title)))
             }
+            // 騎手名鑑 (日本語版 Wikipedia の {{騎手}} 記事)
+            get("/api/jockeys") {
+                val q = call.request.queryParameters
+                call.respond(library.searchJockeys(q["q"] ?: "", q["region"] ?: "", q["active"] == "1", q["sort"] ?: "g1",
+                    q["offset"]?.toIntOrNull() ?: 0, q["limit"]?.toIntOrNull() ?: 48))
+            }
+            get("/api/jockeys/detail") {
+                val title = call.request.queryParameters["title"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+                val j = library.jockey(title) ?: return@get call.respond(HttpStatusCode.NotFound)
+                call.respond(com.example.keiba.service.JockeyDetail(j, library.summary(title)))
+            }
             get("/api/catalog/races") {
                 val q = call.request.queryParameters
                 call.respond(library.searchRaces(
@@ -447,6 +458,7 @@ fun exportStatic(dir: java.io.File) = runBlocking {
     fun write(name: String, text: String) = java.io.File(dir, name).writeText(text)
     write("horses.json", json.encodeToString(library.allHorses()))
     write("model-params.json", json.encodeToString(model.params))
+    write("jockeys.json", json.encodeToString(library.allJockeys()))
     write("races-catalog.json", json.encodeToString(library.allRaces()))
     write("courses.json", json.encodeToString(library.courses()))
     write("status.json", json.encodeToString(library.status()))

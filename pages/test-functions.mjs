@@ -43,6 +43,15 @@ assert(r.body.summary && r.body.summary.length > 20, "Wikipedia の要約");
 assert.equal((await call("/api/horses/detail?title=xxxx")).status, 404);
 assert.equal((await call("/api/horses/detail")).status, 400);
 
+r = await call("/api/jockeys?q=" + encodeURIComponent("武豊"));
+assert(r.body.items.some(j => j.title === "武豊"), "騎手名鑑で検索");
+r = await call("/api/jockeys?region=中央&active=1&limit=200");
+assert(r.body.total > 0 && r.body.items.every(j => j.region === "中央" && j.active), "中央・現役で絞り込み");
+assert(r.body.items.every((j, i, a) => !i || (a[i - 1].g1Wins ?? -1) >= (j.g1Wins ?? -1)), "GI 勝利数の多い順");
+r = await call("/api/jockeys/detail?title=" + encodeURIComponent("武豊"));
+assert.equal(r.body.jockey.name, "武豊");
+assert.equal((await call("/api/jockeys/detail?title=xxxx")).status, 404);
+
 r = await call("/api/catalog/races?grade=GI&limit=500");
 assert(r.body.total > 0 && r.body.items.every(x => x.grade === "GI"), "GI は完全一致");
 

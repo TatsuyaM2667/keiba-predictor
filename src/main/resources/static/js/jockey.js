@@ -183,6 +183,48 @@ export function makeJockey({ cap, name, halfWidth = 0.28 }) {
   return g;
 }
 
+/**
+ * 馬の頭上に出す名札: 枠の色の四角に馬番、その右に馬名 (name を省くと馬番だけ)。
+ * 常にカメラの方を向く板 (Sprite) で、遠くても近くても画面上の大きさは同じ (sizeAttenuation: false)。
+ * 前の馬に隠れないよう、深さの判定をせずに最後に描く (depthTest: false)。
+ */
+export function makeLabel({ num, name, color }) {
+  const W = name ? 512 : 104, H = 112;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const x = c.getContext("2d");
+  x.fillStyle = "rgba(15, 18, 24, 0.78)";
+  x.beginPath();
+  x.roundRect(4, 8, W - 8, H - 16, 22);
+  x.fill();
+  x.fillStyle = color;
+  x.beginPath();
+  x.roundRect(14, 18, 76, H - 36, 14);
+  x.fill();
+  // 枠の色が明るい (白・黄など) なら黒い数字、暗いなら白い数字
+  const [r, g, b] = new THREE.Color(color).toArray();
+  x.fillStyle = 0.299 * r + 0.587 * g + 0.114 * b > 0.6 ? "#111" : "#fff";
+  x.font = "bold 54px 'Helvetica Neue', Arial, sans-serif";
+  x.textAlign = "center";
+  x.textBaseline = "middle";
+  x.fillText(String(num), 52, H / 2 + 2);
+  if (name) {
+    x.fillStyle = "#fff";
+    x.textAlign = "left";
+    x.font = "bold 48px 'Hiragino Sans', 'Noto Sans JP', sans-serif";
+    x.fillText(name, 106, H / 2 + 2, W - 124);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: false }));
+  // 高さ 0.017 = 視野角 32° のカメラで画面の高さの約 3% (900px の画面で約 26px)
+  sprite.scale.set((0.017 * W) / H, 0.017, 1);
+  sprite.renderOrder = 10;
+  sprite.userData.label = name ? "name" : "num";
+  return sprite;
+}
+
 /** 鞍と、馬番を書いたゼッケン (馬の左右)。馬と一緒に動き、騎手のように弾まない */
 export function makeSaddle({ num, halfWidth = 0.28 }) {
   const P = sharedParts();

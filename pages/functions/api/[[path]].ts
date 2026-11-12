@@ -81,6 +81,23 @@ function searchHorses(views: any[], q: URLSearchParams) {
   return { total: list.length, items: list.slice(offset, offset + limit) };
 }
 
+// --- 騎手名鑑の検索 (LibraryService.searchJockeys と同じ) ---
+function searchJockeys(list: any[], q: URLSearchParams) {
+  const needle = (q.get("q") ?? "").trim(), region = q.get("region") ?? "", active = q.get("active") === "1";
+  const hit = list.filter(j =>
+    (!needle || j.name.includes(needle) || j.title.includes(needle) || j.birthplace.includes(needle) || j.affiliation.includes(needle)) &&
+    (!region || j.region === region) && (!active || j.active));
+  const by: Record<string, (a: any, b: any) => number> = {
+    wins: (a, b) => (b.wins ?? -1) - (a.wins ?? -1) || (b.g1Wins ?? -1) - (a.g1Wins ?? -1),
+    new: (a, b) => (b.birthYear ?? 0) - (a.birthYear ?? 0),
+    name: (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+    g1: (a, b) => (b.g1Wins ?? -1) - (a.g1Wins ?? -1) || (b.wins ?? -1) - (a.wins ?? -1),
+  };
+  const sorted = hit.slice().sort(by[q.get("sort") ?? "g1"] ?? by.g1);
+  const offset = Math.max(0, int(q.get("offset"), 0)), limit = clamp(int(q.get("limit"), 48), 1, 200);
+  return { total: sorted.length, items: sorted.slice(offset, offset + limit) };
+}
+
 // --- 競走一覧の検索 (LibraryService.searchRaces と同じ) ---
 const gradeOrder = (g: string) => /^(G|Jpn)I$/.test(g) ? 0 : /^(G|Jpn)II$/.test(g) ? 1 : /^(G|Jpn)III$/.test(g) ? 2 : g ? 3 : 4;
 function searchRaces(races: any[], q: URLSearchParams) {
@@ -335,6 +352,14 @@ export const onRequest = async ({ request, env, params }: Ctx): Promise<Response
         const view = (await d("horses")).find((v: any) => v.horse.title === title);
         if (!view) return json({ error: "見つかりません" }, 404);
         return json({ view, summary: await summary(title).catch(() => null) }, 200, 3600);
+      }
+      case "jockeys": return json(searchJockeys(await d("jockeys"), q), 200, 300);
+      case "jockeys/detail": {
+        const title = q.get("title");
+        if (!title) return json({ error: "title が必要です" }, 400);
+        const jockey = (await d("jockeys")).find((j: any) => j.title === title);
+        if (!jockey) return json({ error: "見つかりません" }, 404);
+        return json({ jockey, summary: await summary(title).catch(() => null) }, 200, 3600);
       }
       case "catalog/races": return json(searchRaces(await d("races-catalog"), q), 200, 300);
       case "courses": return json(await d("courses"), 200, 3600);

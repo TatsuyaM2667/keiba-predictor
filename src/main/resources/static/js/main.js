@@ -399,6 +399,91 @@ async function loadHorses(reset) {
   }
 }
 
+/* ============================================================
+   騎手名鑑 (日本語版 Wikipedia の {{騎手}} 記事)
+   ============================================================ */
+// 写真がない騎手は、人の形のアイコンを出す
+const jockeyCard = (j) => `<button class="hcard" type="button" data-jockey="${esc(j.title)}">
+    <div class="ph">${j.image ? `<img loading="lazy" alt="${esc(j.name)}" src="${photo(j.image, 500)}" onload="this.classList.add('loaded')" onerror="this.remove()">` : `<span class="ph-icon">${icon("user-round")}</span>`}</div>
+    ${j.g1Wins != null ? `<span class="rating num" title="GI 勝利数">GI ${j.g1Wins}</span>` : ""}
+    <div class="body">
+      <span class="name">${esc(j.name)}</span>
+      <span class="meta">${[j.birthYear && `${j.birthYear}年生`, j.region !== "不明" && j.region, j.active ? "現役" : j.retired ? "引退" : j.deathYear ? "故人" : ""].filter(Boolean).map(esc).join(" ・ ")}</span>
+      <span class="meta">${[j.wins != null && `通算 ${j.wins.toLocaleString()} 勝`, j.gradedWins != null && `重賞 ${j.gradedWins} 勝`].filter(Boolean).join(" ・ ")}</span>
+    </div></button>`;
+
+init.jockeys = () => {
+  const reload = debounce(() => loadJockeys(true), 250);
+  $("#jockey-q").addEventListener("input", reload);
+  ["#jockey-sort", "#jockey-region", "#jockey-active"].forEach((s) => $(s).addEventListener("change", () => loadJockeys(true)));
+  $("#jockey-more").addEventListener("click", () => loadJockeys(false));
+  loadJockeys(true);
+};
+
+// 48 人ずつ読み込む (競走馬名鑑の loadHorses と同じ作り)
+async function loadJockeys(reset) {
+  const st = (state.jockeys ??= { offset: 0, loading: false });
+  if (st.loading) return;
+  st.loading = true;
+  if (reset) {
+    st.offset = 0;
+    $("#jockey-grid").innerHTML = Array(8).fill('<div class="skeleton"></div>').join("");
+  }
+  const p = new URLSearchParams({
+    q: $("#jockey-q").value,
+    sort: $("#jockey-sort").value,
+    region: $("#jockey-region").value,
+    active: $("#jockey-active").checked ? "1" : "0",
+    offset: st.offset,
+    limit: 48,
+  });
+  try {
+    const page = await api(`/api/jockeys?${p}`);
+    const html = page.items.map(jockeyCard).join("");
+    if (reset) $("#jockey-grid").innerHTML = html || `<p class="empty">条件に合う騎手が見つかりませんでした</p>`;
+    else $("#jockey-grid").insertAdjacentHTML("beforeend", html);
+    $$("#jockey-grid [data-jockey]").forEach((b) => (b.onclick = () => openJockey(b.dataset.jockey)));
+    st.offset += page.items.length;
+    $("#jockey-count").textContent = `${page.total.toLocaleString()} 人`;
+    $("#jockey-more").hidden = st.offset >= page.total;
+  } catch (e) {
+    $("#jockey-grid").innerHTML = `<p class="empty">読み込めませんでした</p>`;
+  } finally {
+    st.loading = false;
+  }
+}
+
+async function openJockey(title) {
+  openSheet(`<div class="detail-body"><p class="muted">読み込み中</p></div>`);
+  try {
+    const { jockey: j, summary } = await api(`/api/jockeys/detail?title=${encodeURIComponent(title)}`);
+    const facts = [
+      ["生年", [j.birthYear && `${j.birthYear}年`, j.deathYear && `(${j.deathYear}年没)`].filter(Boolean).join(" ")],
+      ["出身", j.birthplace],
+      ["身長", j.heightCm && `${j.heightCm} cm`],
+      ["所属", j.affiliation],
+      ["厩舎", j.stable],
+      ["初騎乗", j.debut],
+      ["引退", j.retired || (j.active ? "現役" : "")],
+      ["通算成績", j.recordText],
+      ["重賞勝利", j.gradedWins != null && `${j.gradedWins} 勝`],
+      ["GI 勝利", j.g1Wins != null && `${j.g1Wins} 勝`],
+    ].filter(([, v]) => v);
+    $("#sheet-body").innerHTML = `
+      <div class="detail-photo">${j.image ? `<img alt="${esc(j.name)}" src="${photo(j.image, 960)}" onerror="this.remove()">` : `<span class="ph-icon big">${icon("user-round")}</span>`}</div>
+      ${j.image ? `<p class="credit photo-credit" id="detail-credit">${esc(j.imageCaption)}</p>` : ""}
+      <div class="detail-body">
+        <h2>${esc(j.name)}</h2>
+        <dl class="facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+        ${summary ? `<p class="summary">${esc(summary)}</p><p class="fine">出典: <a href="${wikiUrl(j.title)}" target="_blank" rel="noopener">Wikipedia「${esc(j.title)}」</a> (CC BY-SA 4.0)</p>` : ""}
+        <div class="btn-row" style="margin-top:18px"><a class="btn ghost small" href="${wikiUrl(j.title)}" target="_blank" rel="noopener">${icon("external-link")}Wikipedia</a></div>
+      </div>`;
+    if (j.image) credit([j.image], $("#detail-credit"), j.imageCaption);
+  } catch (e) {
+    $("#sheet-body").innerHTML = `<div class="detail-body"><p class="muted">読み込めませんでした</p></div>`;
+  }
+}
+
 // 馬の詳細を右側のシートに表示する。まず「読み込み中」を出してから、データが届いたら中身を差し替える。
 // facts は [項目名, 値] の一覧で、値が空の項目は表示しない。
 async function openHorse(title) {
@@ -2017,6 +2102,14 @@ init.sim = async () => {
       state.sim.setCamera(b.dataset.cam);
     }),
   );
+  // 頭上の表示を 名前 → 番号 → なし の順に切り替える (集団で名前が重なるときは番号だけが読みやすい)
+  $("#sim-labels").addEventListener("click", (e) => {
+    const modes = [["name", "名前"], ["num", "番号"], ["off", "表示なし"]];
+    const k = (modes.findIndex(([m]) => m === (state.sim?.labelMode ?? "name")) + 1) % modes.length;
+    e.currentTarget.textContent = modes[k][1];
+    e.currentTarget.classList.toggle("on", modes[k][0] !== "off");
+    state.sim?.setLabels(modes[k][0]);
+  });
   $$("#sim-cams [data-speed]").forEach((b) =>
     b.addEventListener("click", () => {
       $$("#sim-cams [data-speed]").forEach((x) =>

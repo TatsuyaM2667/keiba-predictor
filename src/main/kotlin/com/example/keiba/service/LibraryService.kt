@@ -42,6 +42,12 @@ data class HorseView(
 data class HorsePage(val total: Int, val items: List<HorseView>)
 
 @Serializable
+data class JockeyPage(val total: Int, val items: List<JockeyEntry>)
+
+@Serializable
+data class JockeyDetail(val jockey: JockeyEntry, val summary: String?)
+
+@Serializable
 data class RacePage(val total: Int, val items: List<RaceEntry>)
 
 @Serializable
@@ -50,6 +56,7 @@ data class LibraryStatus(
     val horses: Int,
     val horsesWithPhoto: Int,
     val races: Int,
+    val jockeys: Int,
     val courses: Int,
     val syncing: Boolean,
     val progress: String
@@ -109,7 +116,7 @@ class LibraryService(private val wiki: WikiClient = WikiClient()) {
                 writeTo.parentFile?.mkdirs()
                 GZIPOutputStream(writeTo.outputStream()).bufferedWriter().use { it.write(json.encodeToString(LibrarySnapshot.serializer(), next)) }
                 install(next)
-                log.info("ライブラリ更新: 競走馬 ${next.horses.size} / 競走 ${next.races.size}")
+                log.info("ライブラリ更新: 競走馬 ${next.horses.size} / 競走 ${next.races.size} / 騎手 ${next.jockeys.size}")
             } catch (e: Exception) {
                 log.warn("ライブラリ更新に失敗 (手元のデータを使い続けます): ${e.message}")
                 progress = "更新に失敗しました: ${e.message}"
@@ -126,8 +133,9 @@ class LibraryService(private val wiki: WikiClient = WikiClient()) {
         val media = wiki.fetchCourseMedia(CourseCatalog.all.map { it.qid })
         val races = wiki.fetchRaces { progress = it }
         val horses = wiki.fetchHorses { progress = it }
+        val jockeys = wiki.fetchJockeys { progress = it }
         progress = "完了"
-        return LibrarySnapshot(Instant.now().toString(), horses.sortedBy { it.title }, races.sortedBy { it.title }, media)
+        return LibrarySnapshot(Instant.now().toString(), horses.sortedBy { it.title }, races.sortedBy { it.title }, media, jockeys.sortedBy { it.title })
     }
 
     private fun install(s: LibrarySnapshot) {
@@ -192,8 +200,30 @@ class LibraryService(private val wiki: WikiClient = WikiClient()) {
 
     fun status() = LibraryStatus(
         snapshot.generatedAt, snapshot.horses.size, snapshot.horses.count { it.image != null },
-        snapshot.races.size, CourseCatalog.all.size, syncing, progress
+        snapshot.races.size, snapshot.jockeys.size, CourseCatalog.all.size, syncing, progress
     )
+
+    /**
+     * 騎手名鑑の検索。q は名前・出身地・所属に含まれれば一致。region は 中央 / 地方 / 海外、active = true なら現役だけ。
+     * 並び順: g1 (GI 勝利数) / wins (通算勝利数) / new (若い順) / name (名前順)
+     */
+    fun searchJockeys(q: String, region: String, active: Boolean, sort: String, offset: Int, limit: Int): JockeyPage {
+        val needle = q.trim()
+        val list = snapshot.jockeys.filter { j ->
+            (needle.isEmpty() || j.name.contains(needle) || j.title.contains(needle) || j.birthplace.contains(needle) || j.affiliation.contains(needle)) &&
+                (region.isEmpty() || j.region == region) && (!active || j.active)
+        }
+        val sorted = when (sort) {
+            "wins" -> list.sortedWith(compareByDescending<JockeyEntry> { it.wins ?: -1 }.thenByDescending { it.g1Wins ?: -1 })
+            "new" -> list.sortedByDescending { it.birthYear ?: 0 }
+            "name" -> list.sortedBy { it.name }
+            else -> list.sortedWith(compareByDescending<JockeyEntry> { it.g1Wins ?: -1 }.thenByDescending { it.wins ?: -1 })
+        }
+        return JockeyPage(sorted.size, sorted.drop(offset.coerceAtLeast(0)).take(limit.coerceIn(1, 200)))
+    }
+
+    fun jockey(title: String) = snapshot.jockeys.firstOrNull { it.title == title }
+    fun allJockeys(): List<JockeyEntry> = snapshot.jockeys
 
     // 名鑑の検索。q (キーワード) は馬名・英名・父・母・勝ち鞍のどれかに含まれれば一致。
     // asSequence() で絞り込みを遅延評価にし、途中のリストを作らないようにしている。

@@ -3309,3 +3309,19 @@ button.chip:hover {
     width: 14px;
     height: 14px;
 }
+
+/* 騎手名鑑: 写真がないときの人の形のアイコン */
+.ph-icon {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    color: var(--ink-4);
+}
+.ph-icon svg {
+    width: 38%;
+    height: 38%;
+}
+.ph-icon.big {
+    min-height: 220px;
+}

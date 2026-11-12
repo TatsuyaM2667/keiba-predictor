@@ -14,7 +14,7 @@ import { GLTFLoader } from "/static/vendor/GLTFLoader.js";
 import { clone as cloneSkinned } from "/static/vendor/SkeletonUtils.js";
 import { OrbitControls } from "/static/vendor/OrbitControls.js";
 import { coatOf, margin } from "./util.js";
-import { makeJockey, makeSaddle } from "./jockey.js";
+import { makeJockey, makeSaddle, makeLabel } from "./jockey.js";
 
 // 距離の単位はすべて「メートル」。3D 空間の 1 単位 = 1m として扱う。
 const TRACK_W = 24; // コース幅 (m)
@@ -158,6 +158,7 @@ const alongX = (v) => Math.atan2(-v.z, v.x);
 //   onLost()                          … GPU の都合で描画が続けられなくなったとき
 export class RaceSim {
   constructor(canvas, { onFrame, onFinish, onReady, onLost } = {}) {
+    this.labelMode = "name"; // 頭上の名札: name (馬番と馬名) / num (馬番だけ) / off
     this.canvas = canvas;
     this.onFrame = onFrame;
     this.onFinish = onFinish;
@@ -349,7 +350,10 @@ export class RaceSim {
       jockey.position.copy(seat);
       const saddle = makeSaddle({ num: f.num, halfWidth: this.horseHalfWidth * 0.85 });
       saddle.position.copy(seat);
-      holder.add(jockey, saddle);
+      // children[3], [4] = 頭上の名札 (馬番と馬名 / 馬番だけ)。どちらを出すかは labelMode
+      const labels = [makeLabel({ num: f.num, name: f.name, color: f.silk }), makeLabel({ num: f.num, color: f.silk })];
+      labels.forEach((l) => { l.position.set(0, this.horseHeight + 1.0, 0); l.visible = l.userData.label === this.labelMode; });
+      holder.add(jockey, saddle, ...labels);
       // AnimationMixer: モデルのアニメーションを再生する仕組み。発走前は Idle、スタートで Gallop に切り替える。
       // 再生位置を馬ごとにずらし (Math.random)、全頭の脚がそろって動く不自然さを避ける。
       const mixer = new THREE.AnimationMixer(root);
@@ -692,6 +696,12 @@ export class RaceSim {
     this.running = false;
     this.clock.stop();
   }
+  /** 頭上の名札: "name" (馬番と馬名) / "num" (馬番だけ) / "off" */
+  setLabels(mode) {
+    this.labelMode = mode;
+    for (const h of this.horses) h.root.children.forEach((o) => { if (o.userData.label) o.visible = o.userData.label === mode; });
+  }
+
   setSpeed(x) {
     this.speed = x;
   }

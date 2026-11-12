@@ -2,6 +2,7 @@ package com.example.keiba.data
 
 import com.example.keiba.model.BigWin
 import com.example.keiba.model.HorseEntry
+import com.example.keiba.model.JockeyEntry
 import com.example.keiba.model.RaceEntry
 
 // ==================================================================================
@@ -175,6 +176,53 @@ object Wikitext {
     //   (?: \[\[ [^\]]* \]\]  … リンク 1 個まるごと
     //      | [^|}\[]       … それ以外の、区切りでない 1 文字 )*
     private val medal = Regex("\\{\\{\\s*Medal\\s*((?:G|Jpn)I{1,3})\\s*\\|\\s*((?:\\[\\[[^\\]]*\\]\\]|[^|}\\[])*)")
+
+    // {{騎手}} インフォボックス → JockeyEntry。テンプレートがなければ null (騎手の記事ではない)。
+    // 所属団体は「A<br />→B」のように変遷が書かれるので、地域 (中央/地方/海外) は最後の所属で決める。
+    fun parseJockey(title: String, wikitext: String): JockeyEntry? {
+        val body = template(stripRefs(wikitext), "騎手") ?: return null
+        val p = params(body)
+        fun g(vararg k: String) = k.firstNotNullOfOrNull { p[it]?.takeIf(String::isNotBlank) }
+        val record = clean(g("通", "通算成績"))
+        val rm = Regex("([\\d,]+)戦([\\d,]+)勝").find(record)
+        fun firstInt(s: String) = Regex("([\\d,]+)勝").find(s)?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull()
+        val affiliation = clean(g("団", "所属団体"))
+        val last = affiliation.split(" / ", "→").map { it.trim() }.lastOrNull { it.isNotBlank() } ?: ""
+        val country = clean(g("国"))
+        val region = when {
+            Regex("日本中央競馬会|JRA|トレーニングセンター").containsMatchIn(last) -> "中央"
+            Regex("競馬組合|地方|競馬協会|ばんえい|特別区|競馬事務所|県|市|町").containsMatchIn(last) -> "地方"
+            last.isNotBlank() -> "海外"
+            country == "日本" -> "不明"
+            else -> "海外"
+        }
+        val retired = clean(g("引", "引退"))
+        val death = yearRaw(g("死", "死没"))
+        val debut = clean(g("初", "初騎乗"))
+        return JockeyEntry(
+            title = title,
+            name = clean(g("名", "騎手名")).ifBlank { title.substringBefore(" (") },
+            image = imageName(g("画", "画像")),
+            imageCaption = clean(g("説", "画像説明")),
+            country = country,
+            birthplace = clean(g("出", "出身地")),
+            birthYear = yearRaw(g("生", "生年月日")),
+            deathYear = death,
+            heightCm = Regex("(\\d+(?:\\.\\d+)?)\\s*(?:cm|センチ)").find(clean(g("身", "身長")))?.groupValues?.get(1)?.toDoubleOrNull(),
+            affiliation = affiliation,
+            stable = clean(g("厩", "所属厩舎")),
+            debut = debut,
+            debutYear = yearRaw(g("初", "初騎乗")),
+            retired = retired,
+            starts = rm?.groupValues?.get(1)?.replace(",", "")?.toIntOrNull(),
+            wins = rm?.groupValues?.get(2)?.replace(",", "")?.toIntOrNull(),
+            recordText = record,
+            gradedWins = firstInt(clean(g("重", "重賞勝利"))),
+            g1Wins = firstInt(clean(g("G1", "GI勝利"))),
+            region = region,
+            active = retired.isBlank() && death == null,
+        )
+    }
 
     // {{競走馬}} インフォボックス → HorseEntry。テンプレートがなければ null (競走馬の記事ではない)。
     // キーは記事によって短い名前 (名・父・績) と長い名前 (馬名・生涯成績) が混在するので、

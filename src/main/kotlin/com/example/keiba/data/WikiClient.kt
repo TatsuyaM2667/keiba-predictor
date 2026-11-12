@@ -2,6 +2,7 @@ package com.example.keiba.data
 
 import com.example.keiba.model.CourseMedia
 import com.example.keiba.model.HorseEntry
+import com.example.keiba.model.JockeyEntry
 import com.example.keiba.model.MediaCredit
 import com.example.keiba.model.RaceEntry
 import io.ktor.client.*
@@ -108,6 +109,13 @@ class WikiClient {
         onProgress("競走馬 ${titles.size} 件の記事を取得中")
         val texts = leads(titles) { onProgress("競走馬 $it / ${titles.size}") }
         return texts.mapNotNull { (t, w) -> runCatching { Wikitext.parseHorse(t, w) }.getOrNull() }
+    }
+
+    // 騎手: {{騎手}} を使っている記事 (約 1,000 件) → 冒頭セクション → Wikitext.parseJockey
+    suspend fun fetchJockeys(onProgress: (String) -> Unit = {}): List<JockeyEntry> {
+        val titles = embeddedIn("騎手")
+        val texts = leads(titles) { onProgress("騎手 $it / ${titles.size}") }
+        return texts.mapNotNull { (t, w) -> runCatching { Wikitext.parseJockey(t, w) }.getOrNull() }
     }
 
     suspend fun fetchRaces(onProgress: (String) -> Unit = {}): List<RaceEntry> {

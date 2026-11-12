@@ -55,6 +55,7 @@
         <a href="#/courses" data-view="courses"><svg><use href="/static/icons/sprite.svg#i-map-pin"/></svg><span>競馬場</span></a>
         <a href="#/catalog" data-view="catalog"><svg><use href="/static/icons/sprite.svg#i-trophy"/></svg><span>競走一覧</span></a>
         <a href="#/horses" data-view="horses"><svg><use href="/static/icons/sprite.svg#i-book-open"/></svg><span>競走馬名鑑</span></a>
+        <a href="#/jockeys" data-view="jockeys"><svg><use href="/static/icons/sprite.svg#i-user-round"/></svg><span>騎手名鑑</span></a>
         <a href="#/pedigree" data-view="pedigree"><svg><use href="/static/icons/sprite.svg#i-network"/></svg><span>血統</span></a>
         <a href="#/knowledge" data-view="knowledge"><svg><use href="/static/icons/sprite.svg#i-swatch-book"/></svg><span>品種と毛色</span></a>
         <p class="nav-label">ツール</p>
@@ -169,6 +170,8 @@
               <button data-speed="1" class="on" type="button" title="等速">1×</button>
               <button data-speed="2" type="button" title="2倍速">2×</button>
               <button data-speed="4" type="button" title="4倍速">4×</button>
+              <span class="sep"></span>
+              <button id="sim-labels" class="on" type="button" title="頭上の表示 (押すたびに 名前 → 番号 → なし)">名前</button>
             </div>
             <div class="sim-result glass" id="sim-result" hidden></div>
             <div class="sim-loading" id="sim-loading">3D を準備しています</div>
@@ -300,6 +303,20 @@
         <div class="horse-grid" id="horse-grid"></div>
         <div class="actions"><button class="btn ghost" id="horse-more" type="button">さらに表示</button></div>
         <p class="fine">データ: 日本語版 Wikipedia「競走馬」記事のインフォボックス (CC BY-SA 4.0)。写真: Wikimedia Commons (作者・ライセンスは詳細画面に表示)。</p>
+      </section>
+
+      <!-- JOCKEYS: 騎手名鑑 -->
+      <section class="view" id="view-jockeys">
+        <header class="page-head"><div><p class="eyebrow">Jockeys</p><h1 class="title">騎手名鑑</h1></div><p class="muted" id="jockey-count"></p></header>
+        <div class="toolbar">
+          <label class="search"><svg><use href="/static/icons/sprite.svg#i-search"/></svg><input id="jockey-q" type="search" placeholder="名前・出身地・所属で検索" aria-label="騎手名鑑を検索"></label>
+          <select id="jockey-sort" aria-label="並び順"><option value="g1">GI 勝利数順</option><option value="wins">通算勝利数順</option><option value="new">若い順</option><option value="name">名前順</option></select>
+          <select id="jockey-region" aria-label="所属"><option value="">所属 (すべて)</option><option value="中央">中央 (JRA)</option><option value="地方">地方</option><option value="海外">海外</option></select>
+          <label class="check"><input type="checkbox" id="jockey-active"> 現役のみ</label>
+        </div>
+        <div class="horse-grid" id="jockey-grid"></div>
+        <div class="actions"><button class="btn ghost" id="jockey-more" type="button">さらに表示</button></div>
+        <p class="fine">データ: 日本語版 Wikipedia「騎手」記事のインフォボックス (CC BY-SA 4.0)。写真: Wikimedia Commons (作者・ライセンスは詳細画面に表示)。勝利数は記事に書かれた時点の値です。</p>
       </section>
 
       <!-- PEDIGREE -->
