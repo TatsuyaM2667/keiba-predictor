@@ -28,7 +28,7 @@ import {
   seeded,
   setTokenProvider,
 } from "./util.js";
-import { marketProbs, kelly, coatName, simulateOrders, strategies, commentary, BET, BET_TYPES, hits, probOf, oddsFrom, modelProbs, features, normSurface, featureVector, fittedProbs, sampleOrders } from "./race-model.js";
+import { marketProbs, kelly, coatName, simulateOrders, strategies, commentary, BET, BET_TYPES, hits, probOf, oddsFrom, modelProbs, features, normSurface, featureVector, fittedProbs, sampleOrders, lambdasOf } from "./race-model.js";
 
 // Firebase の Web SDK (公式 CDN)。/api/config に設定がある環境 (Cloudflare Pages 版) だけで読み込む
 const FIREBASE_SDK = "https://www.gstatic.com/firebasejs/13.2.0/";
@@ -985,7 +985,7 @@ function renderOutlook(a) {
     ? `<p class="note warn">${icon("info")}<span><b>危険な人気馬</b> ${cm.danger.map((d) => `${esc(H[d.index].name)}: ${esc(d.text)}`).join(" / ")}</span></p>`
     : "";
   const order = p.map((_, i) => i).sort((i, j) => p[j] - p[i]);
-  const plans = strategies(a.orders, H.length, order, a.market, H.map((h) => h.odds || 0));
+  const plans = strategies(a.orders, H.length, p, a.market, H.map((h) => h.odds || 0), lambdasOf(state.modelParams));
   const num = (i) => H[i].horseNumber;
   const combo = (t) => t.picks.map(num).join(BET[t.type].ordered ? "→" : "-");
   const pct = (v) => `${(v * 100).toFixed(1)}%`;
@@ -1039,7 +1039,7 @@ function liveAnalysis(r, runners) {
   }));
   const win = winP.map((v) => v * 100);
   // 組み合わせ馬券 (馬連・3連単など) の確率用に、毎回の 1〜3 着も記録する (2 万回)。勝率と同じモデルでくじ引きする
-  const orders = fitted ? sampleOrders(fitted, 20000) : z ? simulateOrders(z, Math.min(18, horses.length), pace.value, 20000) : null;
+  const orders = fitted ? sampleOrders(fitted, 20000, 20261109, lambdasOf(state.modelParams)) : z ? simulateOrders(z, Math.min(18, horses.length), pace.value, 20000) : null;
   const max = Math.max(...win, 1e-9);
   const order = win.map((w, i) => i).sort((i, j) => win[j] - win[i]);
   const marks = ["◎", "◯", "▲", "△", "△"];
@@ -1382,6 +1382,18 @@ function renderModelReport() {
     <div class="table-wrap"><table class="table"><thead><tr><th>モデル</th><th>対数損失</th><th>市場との差 (± 標準誤差)</th></tr></thead><tbody>${mp.report
       .map((r) => `<tr class="${r.name === mp.selected ? "best" : ""}"><td>${r.name === mp.selected ? "<b>採用</b> " : ""}${esc(r.label)}</td><td class="num">${r.logLoss.toFixed(4)}</td>
         <td class="num">${r.vsMarket == null ? "基準" : `<span class="${r.vsMarket < -2 * r.vsMarketSe ? "plus" : r.vsMarket > 2 * r.vsMarketSe ? "minus" : ""}">${r.vsMarket >= 0 ? "+" : ""}${r.vsMarket.toFixed(4)}</span> ± ${r.vsMarketSe.toFixed(4)}`}</td></tr>`)
+      .join("")}</tbody></table></div>${orderReportHtml(mp)}`;
+}
+
+// 2 着・3 着の当て方 (割引 Harville の λ) の比較。複勝・ワイド・馬連・3連複などの確率と、買い目の選び方に使う
+function orderReportHtml(mp) {
+  if (!mp.orderReport?.length) return "";
+  const diff = (r) => r.vsMarket == null ? "基準"
+    : `<span class="${r.vsMarket < -2 * r.vsMarketSe ? "plus" : r.vsMarket > 2 * r.vsMarketSe ? "minus" : ""}">${r.vsMarket >= 0 ? "+" : ""}${r.vsMarket.toFixed(4)}</span> ± ${r.vsMarketSe.toFixed(4)}`;
+  return `<h4>2 着・3 着の確率 (割引 Harville モデル)</h4>
+    <p class="note">${icon("info")}<span>人気馬は勝率から思うほど 2・3 着に来ないので、2 着は勝率の ${mp.lambda2.toFixed(2)} 乗、3 着は ${mp.lambda3.toFixed(2)} 乗で計算しています (過去のレースの 2・3 着で推定)。</span></p>
+    <div class="table-wrap"><table class="table"><thead><tr><th>2・3 着の計算</th><th>対数損失</th><th>Harville との差 (± 標準誤差)</th></tr></thead><tbody>${mp.orderReport
+      .map((r) => `<tr class="${r.name === "discounted" ? "best" : ""}"><td>${r.name === "discounted" ? "<b>採用</b> " : ""}${esc(r.label)}</td><td class="num">${r.logLoss.toFixed(4)}</td><td class="num">${diff(r)}</td></tr>`)
       .join("")}</tbody></table></div>`;
 }
 

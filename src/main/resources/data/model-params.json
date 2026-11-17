@@ -1,8 +1,8 @@
 {
     "version": 1,
-    "fittedAt": "2026-11-12",
-    "races": 18,
-    "runners": 225,
+    "fittedAt": "2026-11-18",
+    "races": 54,
+    "runners": 713,
     "selected": "market",
     "alpha": 1.0,
     "features": [
@@ -41,15 +41,15 @@
         {
             "name": "uniform",
             "label": "全頭同じ確率",
-            "logLoss": 2.4892736628392824,
-            "vsMarket": 0.8955820128925139,
-            "vsMarketSe": 0.2344112500476844,
+            "logLoss": 2.5502359873731177,
+            "vsMarket": 0.6394227540492929,
+            "vsMarketSe": 0.12177278714015292,
             "note": ""
         },
         {
             "name": "market",
             "label": "市場 (単勝オッズそのまま)",
-            "logLoss": 1.5936916499467684,
+            "logLoss": 1.9108132333238255,
             "vsMarket": null,
             "vsMarketSe": null,
             "note": ""
@@ -57,36 +57,64 @@
         {
             "name": "hand",
             "label": "今の手動モデル (Zig と同じ・係数は手で決めた)",
-            "logLoss": 2.074087074499602,
-            "vsMarket": 0.48039542455283357,
-            "vsMarketSe": 0.27071034256554966,
+            "logLoss": 2.639695522007729,
+            "vsMarket": 0.7288822886839034,
+            "vsMarketSe": 0.18657210379171066,
             "note": ""
         },
         {
             "name": "features",
             "label": "特徴量だけで学習 (交差検証)",
-            "logLoss": 2.297125724578643,
-            "vsMarket": 0.7034340746318749,
-            "vsMarketSe": 0.20544851424577845,
+            "logLoss": 2.3733824168330155,
+            "vsMarket": 0.4625691835091892,
+            "vsMarketSe": 0.10635775351254684,
             "note": ""
         },
         {
             "name": "market_power",
             "label": "市場の確率を補正 (q^α・交差検証)",
-            "logLoss": 1.6470130172403499,
-            "vsMarket": 0.05332136729358174,
-            "vsMarketSe": 0.06649170929877059,
+            "logLoss": 1.920267352493492,
+            "vsMarket": 0.009454119169665789,
+            "vsMarketSe": 0.002116938060608598,
             "note": ""
         },
         {
             "name": "market_features",
             "label": "市場 + 特徴量 (交差検証)",
-            "logLoss": 1.7754180513984996,
-            "vsMarket": 0.1817264014517312,
-            "vsMarketSe": 0.08001724432483247,
+            "logLoss": 1.967069986969321,
+            "vsMarket": 0.05625675364549498,
+            "vsMarketSe": 0.03351447577247524,
             "note": ""
         }
     ],
     "note": "市場 (単勝オッズ) より、はっきり良いモデルはまだありません。勝率は市場の確率を使います",
-    "excludedRaces": 30
+    "excludedRaces": 30,
+    "lambda2": 0.8371056544427293,
+    "lambda3": 0.6446790490862568,
+    "orderReport": [
+        {
+            "name": "harville",
+            "label": "Harville の式 (これまで)",
+            "logLoss": 4.073492796547233,
+            "vsMarket": null,
+            "vsMarketSe": null,
+            "note": ""
+        },
+        {
+            "name": "benter",
+            "label": "割引 Harville (文献の λ)",
+            "logLoss": 3.99173786382955,
+            "vsMarket": -0.08175493271768357,
+            "vsMarketSe": 0.055511865081755804,
+            "note": ""
+        },
+        {
+            "name": "discounted",
+            "label": "割引 Harville (λ を推定・交差検証)",
+            "logLoss": 4.001177348890272,
+            "vsMarket": -0.0723154476569612,
+            "vsMarketSe": 0.05433104854156378,
+            "note": ""
+        }
+    ]
 }

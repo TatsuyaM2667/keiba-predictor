@@ -65,23 +65,11 @@ object BacktestService {
     const val APP_PLAN = "アプリの買い目 (期待値 1 超えの単勝)"
     const val FAVORITE_PLAN = "1番人気の単勝 (比較用)"
 
-    /** 印の順 (勝率の高い順の出走表の番号) → 7 つの買い方 (画面の race-model.js の planTickets と同じ) */
-    fun planTickets(order: List<Int>): List<Pair<String, List<Pair<String, List<Int>>>>> {
-        val a = order.getOrNull(0) ?: return emptyList()
-        val (b, c, d) = listOf(1, 2, 3).map { order.getOrNull(it) }
-        val plans = mutableListOf<Pair<String, List<Pair<String, List<Int>>>>>(
-            "単勝 ◎" to listOf("win" to listOf(a)),
-            "複勝 ◎" to listOf("place" to listOf(a)),
-        )
-        if (b != null) plans += "ワイド ◎-◯" to listOf("wide" to listOf(a, b))
-        if (b != null && c != null && d != null) {
-            plans += "馬連 ◎→◯▲△" to listOf(b, c, d).map { "umaren" to listOf(a, it) }
-            plans += "馬単 ◎→◯▲△" to listOf(b, c, d).map { "umatan" to listOf(a, it) }
-            plans += "3連複 ◎◯▲△ ボックス" to listOf(listOf(a, b, c), listOf(a, b, d), listOf(a, c, d), listOf(b, c, d)).map { "trio" to it }
-            plans += "3連単 ◎ 1着固定 → ◯▲△" to listOf(b to c, b to d, c to b, c to d, d to b, d to c).map { (x, y) -> "tierce" to listOf(a, x, y) }
-        }
-        return plans
-    }
+    /**
+     * 勝率 p → 7 つの買い方 (画面の race-model.js の planTickets と同じ)。
+     * 組み合わせは割引 Harville モデル (Ranking.kt) で当たる確率が高い順に選ぶ (同じ点数で的中率が最大)
+     */
+    fun planTickets(p: DoubleArray, l2: Double, l3: Double) = Ranking.plans(Ranking.tables(p, l2, l3))
 
     /** 実際の払戻金で、馬券 1 点 (100 円) がいくら戻ったか。組番は、順番を問わない券種は小さい順に「-」でつなぐ */
     fun payoutOf(payouts: Map<String, List<Payout>>, type: String, nums: List<Int>): Int {
@@ -93,6 +81,7 @@ object BacktestService {
 
     /** 1 レース分。予想に使える出走馬が 4 頭未満、または単勝の払戻がないレースは null */
     fun evaluate(r: PastRace, params: ModelParams): BacktestRace? {
+        // 注: params は全レースで学習したもの。交差検証の値は ModelParams.report / orderReport を見る
         if (!ModelService.isComplete(r)) return null // 出馬表に抜けがあるレースは使わない
         val out = r.result.order.filter { Regex("取消|除外").containsMatchIn(it.status) }.mapNotNull { it.num }.toSet()
         val run = r.card.runners.filter { !it.scratched && it.num != null && it.num !in out }
@@ -111,7 +100,7 @@ object BacktestService {
         val placeOf = r.result.order.filter { it.num != null }.associate { it.num!! to it.place }
         val fav = odds.indices.filter { odds[it] > 0 }.minByOrNull { odds[it] }
         val win = { i: Int -> payoutOf(r.result.payouts, "win", listOf(num(i))) }
-        val plans = planTickets(order).map { (name, tickets) ->
+        val plans = planTickets(p, params.lambda2, params.lambda3).map { (name, tickets) ->
             PlanResult(name, tickets.size * 100, tickets.sumOf { (type, picks) -> payoutOf(r.result.payouts, type, picks.map(num)) })
         }.toMutableList()
         // アプリの買い目: 勝率 × オッズ が 1 を超える単勝 (ケリー基準で賭ける馬)

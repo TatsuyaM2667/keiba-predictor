@@ -22,6 +22,8 @@ import kotlin.math.roundToInt
 class PredictorEngine(
     private val sireStats: (String) -> SireStat? = { null },
     private val marketAlpha: () -> Double = { 1.0 },
+    /** 2 着・3 着の割引 Harville の (λ₂, λ₃)。ModelService が過去のレースで推定した値 */
+    private val ranking: () -> Pair<Double, Double> = { Ranking.PRIOR_L2 to Ranking.PRIOR_L3 },
 ) {
     /** 名鑑から作った、ある種牡馬の産駒の成績 (重賞を勝った産駒の頭数・芝で勝った割合・平均距離) */
     data class SireStat(val offspring: Int, val turfShare: Double, val meanDistance: Double?)
@@ -35,7 +37,8 @@ class PredictorEngine(
         }
         val scores = race.horses.map { scoreOf(it, race, paceForecast) }
         val p = winProbabilities(race.horses.map { it.odds }, marketAlpha())
-        val place = top3Probabilities(p)
+        val (l2, l3) = ranking()
+        val place = top3Probabilities(p, l2, l3)
 
         // 印は勝率の順。☆ は評価の順位が人気 (勝率) の順位より 3 つ以上高い馬のうち、いちばん差の大きい馬
         val byP = p.indices.sortedByDescending { p[it] }
@@ -145,16 +148,21 @@ class PredictorEngine(
             return w.map { it / t }.toDoubleArray()
         }
 
-        /** 各馬が 3 着以内に入る確率 (Harville の式。勝率が softmax のモデルではこの式が正しい) */
-        fun top3Probabilities(p: DoubleArray): DoubleArray {
+        /**
+         * 各馬が 3 着以内に入る確率 (割引 Harville の式。Ranking.kt)。λ₂ = λ₃ = 1 なら元の Harville の式。
+         * 人気馬の 2・3 着の確率を、元の Harville の式ほど高く見積もらない (実際のレースに合わせる)
+         */
+        fun top3Probabilities(p: DoubleArray, l2: Double = Ranking.PRIOR_L2, l3: Double = Ranking.PRIOR_L3): DoubleArray {
             val n = p.size
             val out = DoubleArray(n)
+            val w2 = DoubleArray(n) { max(p[it], 1e-12).pow(l2) }
+            val w3 = DoubleArray(n) { max(p[it], 1e-12).pow(l3) }
             for (a in 0 until n) for (b in 0 until n) {
                 if (a == b) continue
-                val pab = p[a] * p[b] / (1 - p[a])
+                val pab = p[a] * w2[b] / (w2.sum() - w2[a])
                 for (c in 0 until n) {
                     if (c == a || c == b) continue
-                    val pabc = pab * p[c] / (1 - p[a] - p[b])
+                    val pabc = pab * w3[c] / (w3.sum() - w3[a] - w3[b])
                     out[a] += pabc; out[b] += pabc; out[c] += pabc
                 }
             }

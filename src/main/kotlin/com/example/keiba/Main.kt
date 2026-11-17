@@ -109,7 +109,7 @@ fun main(args: Array<String>) {
             Thread.sleep(12 * 3600_000L)
         }
     }
-    val raceService = RaceService(weatherService, PredictorEngine(sireStatsOf(library)) { modelService.params.alpha })
+    val raceService = RaceService(weatherService, PredictorEngine(sireStatsOf(library), marketAlpha = { modelService.params.alpha }, ranking = { modelService.params.lambda2 to modelService.params.lambda3 }))
     val authService = AuthService()
     val encyclopediaService = com.example.keiba.service.EncyclopediaService()
 
@@ -465,7 +465,7 @@ fun exportStatic(dir: java.io.File) = runBlocking {
     val library = LibraryService()
     // 予想モデルは書き出すたびに学習し直す (取れなければ同梱の学習結果)
     val model = ModelService(RESULTS_URL).also { m -> runCatching { m.refit() }.onFailure { println("予想モデルの学習をスキップ: ${it.message}") } }
-    val races = RaceService(WeatherService(), PredictorEngine(sireStatsOf(library)) { model.params.alpha })
+    val races = RaceService(WeatherService(), PredictorEngine(sireStatsOf(library), marketAlpha = { model.params.alpha }, ranking = { model.params.lambda2 to model.params.lambda3 }))
     val encyclopedia = com.example.keiba.service.EncyclopediaService()
     dir.mkdirs()
     fun write(name: String, text: String) = java.io.File(dir, name).writeText(text)

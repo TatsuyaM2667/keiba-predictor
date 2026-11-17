@@ -252,14 +252,22 @@ export function parseResult(html: string, cname: string): RaceResult {
   return { cardCname, order, payouts, siblings };
 }
 
-/** 答え合わせ用に、予想に使う項目だけを残した出馬表 (保存量と、画面に送る量を 1/5 ほどにする) */
+/**
+ * 答え合わせ用に、予想に使う項目だけを残した出馬表 (保存量と、画面に送る量を 1/4 ほどにする)。
+ * 騎手・斤量・馬体重・性齢と、過去走の人気・上がり 3F・馬場状態・日付も残す。今のモデルはまだ使っていないが、
+ * 過去のレースは後から取り直せない (JRA 側で見られなくなる) ので、データがたまったときに特徴量として学習できるように保存しておく
+ */
 export function compactCard(card: ReturnType<typeof parseCard>) {
   const h = card.header;
   return {
     header: { name: h.name, grade: h.grade, distance: h.distance, surface: h.surface, postTime: h.postTime, cond: h.cond },
     runners: card.runners.map(r => ({
       waku: r.waku, num: r.num, name: r.name, odds: r.odds, pop: r.pop, scratched: r.scratched, color: r.color,
-      past: r.past.map(p => ({ place: p.place, field: p.field, grade: p.grade, diff: p.diff, distance: p.distance, surface: p.surface, corners: p.corners.slice(0, 1) })),
+      sexAge: r.sexAge, carry: r.carry, bodyWeight: r.bodyWeight, weightDiff: r.weightDiff, jockey: r.jockey, trainer: r.trainer,
+      past: r.past.map(p => ({
+        date: p.date, place: p.place, field: p.field, grade: p.grade, diff: p.diff, distance: p.distance, surface: p.surface, corners: p.corners.slice(0, 1),
+        pop: p.pop, f3: p.f3, cond: p.cond, gate: p.gate,
+      })),
     })),
   };
 }

@@ -9,7 +9,7 @@ import { parseTop, parseRaceList, parseCard, parseScheduleMonth, gradeOf, parseR
 import { plan, cardInterval, MIN, HOUR } from "./sync/src/plan.ts";
 import { tick } from "./sync/src/index.ts";
 import { onRequest } from "./functions/api/[[path]].ts";
-import { features, paceOf, marketProbs, kelly, simulateOrders, probOf, hits, harville, oddsFrom, strategies, commentary, BET_TYPES, fittedProbs, sampleOrders, normSurface } from "../src/main/resources/static/js/race-model.js";
+import { features, paceOf, marketProbs, kelly, simulateOrders, probOf, hits, harville, oddsFrom, strategies, commentary, BET_TYPES, fittedProbs, sampleOrders, normSurface, betTables, planTickets, lambdasOf } from "../src/main/resources/static/js/race-model.js";
 
 // ---------- 手書きの JRA 風 HTML ----------
 const TOP = `<a href="#" onclick="doAction('/JRADB/accessD.html', 'pw01drl10052026050520261115/AB');">5回東京5日<span>土曜</span></a>
@@ -128,7 +128,8 @@ assert(Math.abs(sW - 3) < 1e-9, "ワイドは毎回 3 組が当たる");
 assert.equal(oddsFrom(0.25, 0.2), 3.2, "(1 − 0.2) ÷ 0.25");
 assert.equal(oddsFrom(0.9, 0.2), 1.0, "最低 1.0 倍 (元返し)");
 assert.equal(BET_TYPES.length, 7);
-const st = strategies(ord, n8, [0, 1, 2, 3], [0.3, 0.2, 0.15, 0.1, 0.09, 0.07, 0.05, 0.04], [2.6, 4, 5.3, 8, 8.9, 11.4, 16, 20]);
+const q8 = [0.3, 0.2, 0.15, 0.1, 0.09, 0.07, 0.05, 0.04];
+const st = strategies(ord, n8, q8, q8, [2.6, 4, 5.3, 8, 8.9, 11.4, 16, 20]);
 assert.equal(st.length, 7);
 assert(st.every(x => x.hitRate > 0 && x.hitRate <= 1 && x.returnRate > 0), "的中率と回収率");
 assert.equal(st.find(x => x.name.startsWith("単勝")).tickets[0].estimated, false, "単勝は本物のオッズ");
@@ -148,7 +149,34 @@ assert.equal(fittedProbs(marketOnly, XX, [0.5, 0.5, 0, 0]), null, "オッズの�
 assert.equal(fittedProbs(null, XX, qq), null);
 const so = sampleOrders(qq, 40000);
 qq.forEach((v, i) => assert(Math.abs(probOf(so, 4, "win", [i]) - v) < 0.01, `くじ引きの 1 着の割合 = 勝率 (${i})`));
-assert(Math.abs(probOf(so, 4, "umatan", [0, 1]) - harville(qq, "umatan", [0, 1])) < 0.01, "2 着も同じモデル (Harville の式) どおり");
+assert(Math.abs(probOf(so, 4, "umatan", [0, 1]) - harville(qq, "umatan", [0, 1])) < 0.01, "2 着も同じモデル (割引 Harville の式) どおり");
+
+// ---------- 割引 Harville と、的中率が最大の買い目 (Kotlin の Ranking.kt と同じ) ----------
+{
+  const H1 = harville(q8, "tierce", [0, 1, 2], [1, 1]);
+  assert(Math.abs(H1 - 0.3 * 0.2 / 0.7 * 0.15 / 0.5) < 1e-12, "λ = 1 は元の Harville の式");
+  const t = betTables(q8);
+  const sum = (m) => [...m.values()].reduce((a, b) => a + b, 0);
+  for (const [k, v] of [["win", 1], ["place", 3], ["umaren", 1], ["wide", 3], ["umatan", 1], ["trio", 1], ["tierce", 1]]) assert(Math.abs(sum(t[k]) - v) < 1e-9, `${k} の合計`);
+  assert(Math.abs(t.tierce.get("0-1-2") - harville(q8, "tierce", [0, 1, 2])) < 1e-12, "betTables と harville が一致");
+  assert(Math.abs(t.trio.get("0-1-2") - harville(q8, "trio", [0, 1, 2])) < 1e-12);
+  assert(Math.abs(t.wide.get("0-3") - harville(q8, "wide", [0, 3])) < 1e-12);
+  // 割引すると 1 番人気の 3 着以内の確率は下がる
+  assert(t.place.get("0") < betTables(q8, [1, 1]).place.get("0"), "割引の向き");
+  const s8 = sampleOrders(q8, 60000, 7, [0.8, 0.6]);
+  const t8 = betTables(q8, [0.8, 0.6]);
+  assert(Math.abs(probOf(s8, 8, "trio", [0, 1, 2]) - t8.trio.get("0-1-2")) < 0.006, "くじ引きの 3 連複 = 割引 Harville");
+  assert(Math.abs(probOf(s8, 8, "place", [7]) - t8.place.get("7")) < 0.006, "くじ引きの複勝 = 割引 Harville");
+  // 新しい買い目は、同じ点数の以前の買い目 (◎ 軸・ボックス) より的中率が低くならない
+  const exact = (tickets) => { let s = 0; for (const [key, v] of t.tierce) { const top3 = key.split("-").map(Number); if (tickets.some(([ty, pk]) => hits(ty, pk, top3, 8))) s += v; } return s; };
+  const plans = planTickets(q8);
+  const oldTrio = [[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]].map((x) => ["trio", x]);
+  const oldTierce = [[1, 2], [1, 3], [2, 1], [2, 3], [3, 1], [3, 2]].map(([x, y]) => ["tierce", [0, x, y]]);
+  assert(exact(plans.find((x) => x.name.startsWith("3連複")).tickets) >= exact(oldTrio) - 1e-12, "3連複");
+  assert(exact(plans.find((x) => x.name.startsWith("3連単")).tickets) >= exact(oldTierce) - 1e-12, "3連単");
+  assert.deepEqual(lambdasOf({ lambda2: 0.7, lambda3: 0.5 }), [0.7, 0.5]);
+  assert.deepEqual(lambdasOf(null), [0.81, 0.65], "学習結果がなければ文献の値");
+}
 assert.equal(normSurface("芝 内外"), "芝");
 assert.equal(normSurface("ダート"), "ダート");
 
@@ -232,7 +260,8 @@ assert.deepEqual(later.filter(k => k.startsWith("result")), ["results_top", "res
 const stored = db.prepare("SELECT id, result, card FROM jra_results ORDER BY id").all();
 assert.deepEqual(stored.map(r => r.id), ["20261115-05-09", "20261115-05-10", "20261115-05-11"]);
 assert(stored.every(r => r.result && r.card), "結果と出馬表がそろう");
-assert.equal(JSON.parse(stored[2].card).runners[0].jockey, undefined, "出馬表は必要な項目だけに絞る");
+assert.equal(JSON.parse(stored[2].card).runners[0].sire, undefined, "出馬表は必要な項目だけに絞る");
+assert.equal(JSON.parse(stored[2].card).runners[0].jockey, "騎手1", "騎手は将来の学習用に残す");
 assert.equal(JSON.parse(stored[2].card).runners[0].past[0].place, 1);
 
 // ---------- 画面用 API ----------

@@ -71,28 +71,78 @@ export function fittedProbs(params, X, q) {
   return e.map((v) => v / s);
 }
 
+// ==================================================================================
+// 2 着・3 着の確率: 割引 Harville モデル (Kotlin の Ranking.kt と同じ)
+// ==================================================================================
+//   P(1 着 i, 2 着 j, 3 着 k) = pᵢ · pⱼ^λ₂ / Σ_{m≠i} p_m^λ₂ · pₖ^λ₃ / Σ_{m≠i,j} p_m^λ₃
+// λ = 1 なら元の Harville の式。実際のレースでは人気馬は勝率から思うほど 2・3 着に来ないので λ < 1 にする
+// (Lo & Bacon-Shone 1994、Benter 1994)。λ は Kotlin の ModelService が過去のレースの 2・3 着で推定し、
+// 学習結果 (modelParams.lambda2 / lambda3) で配る。ないときは文献の値。
+export const PRIOR_LAMBDA = [0.81, 0.65];
+/** 学習結果から [λ₂, λ₃] */
+export const lambdasOf = (params) => [params?.lambda2 ?? PRIOR_LAMBDA[0], params?.lambda3 ?? PRIOR_LAMBDA[1]];
+
 /**
- * 勝率 p のモデル (softmax = Plackett–Luce モデル) で、1〜3 着を runs 回くじ引きする。
- * 各馬に「log pᵢ + Gumbel 分布の乱数」を付けて大きい順に並べると、1 着になる確率がちょうど pᵢ になり、
- * 2 着・3 着も同じモデル (Harville の式) どおりになる (Gumbel-max の性質)。戻り値の形は simulateOrders と同じ。
+ * 勝率 p のモデルで、1〜3 着を runs 回くじ引きする。戻り値の形は simulateOrders と同じ。
+ * 各段で「λ·log pᵢ + Gumbel 分布の乱数」が最大の馬を選ぶと、その段で選ばれる確率がちょうど pᵢ^λ / Σ p^λ になる
+ * (Gumbel-max の性質)。1 着は λ = 1、2 着は λ₂、3 着は λ₃ で、割引 Harville モデルどおりになる。
  */
-export function sampleOrders(p, runs = 20000, seed = 20261109) {
+export function sampleOrders(p, runs = 20000, seed = 20261109, lam = PRIOR_LAMBDA) {
   let s = seed >>> 0 || 1;
   const rnd = () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return (s + 0.5) / 4294967296; }; // 0 と 1 を含まない
   const lp = p.map((v) => Math.log(Math.max(v, 1e-12)));
+  const stage = (l, skip1, skip2) => {
+    let best = -1, bs = -Infinity;
+    for (let i = 0; i < lp.length; i++) {
+      if (i === skip1 || i === skip2) continue;
+      const v = l * lp[i] - Math.log(-Math.log(rnd()));
+      if (v > bs) { best = i; bs = v; }
+    }
+    return best;
+  };
   const out = new Uint8Array(runs * 3);
   for (let k = 0; k < runs; k++) {
-    let a = -1, b = -1, c = -1, sa = -Infinity, sb = -Infinity, sc = -Infinity;
-    for (let i = 0; i < lp.length; i++) {
-      const v = lp[i] - Math.log(-Math.log(rnd()));
-      if (v > sa) { c = b; sc = sb; b = a; sb = sa; a = i; sa = v; }
-      else if (v > sb) { c = b; sc = sb; b = i; sb = v; }
-      else if (v > sc) { c = i; sc = v; }
-    }
+    const a = stage(1, -1, -1), b = stage(lam[0], a, -1), c = stage(lam[1], a, b);
     out[k * 3] = a; out[k * 3 + 1] = b; out[k * 3 + 2] = c;
   }
   return out;
 }
+
+/**
+ * 1〜3 着のすべての並びを数え上げて、券種ごとに全部の組み合わせの確率を出す (Kotlin の Ranking.tables と同じ)。
+ * 戻り値: { win, place, umaren, wide, umatan, trio, tierce }、それぞれ Map("0-3" → 確率)。順不同の券種は小さい順。
+ */
+export function betTables(p, lam = PRIOR_LAMBDA) {
+  const n = p.length;
+  const w2 = p.map((v) => Math.max(v, 1e-12) ** lam[0]), w3 = p.map((v) => Math.max(v, 1e-12) ** lam[1]);
+  const s2 = w2.reduce((a, b) => a + b, 0), s3 = w3.reduce((a, b) => a + b, 0);
+  const t = Object.fromEntries(["win", "place", "umaren", "wide", "umatan", "trio", "tierce"].map((k) => [k, new Map()]));
+  const add = (type, picks, v) => { const k = picks.join("-"); t[type].set(k, (t[type].get(k) ?? 0) + v); };
+  const asc = (...x) => x.sort((u, v) => u - v);
+  for (let a = 0; a < n; a++) {
+    add("win", [a], p[a]);
+    for (let b = 0; b < n; b++) {
+      if (b === a) continue;
+      const pab = (p[a] * w2[b]) / (s2 - w2[a]);
+      add("umatan", [a, b], pab);
+      add("umaren", asc(a, b), pab);
+      if (n <= 7) { add("place", [a], pab); add("place", [b], pab); }
+      for (let c = 0; c < n; c++) {
+        if (c === a || c === b) continue;
+        const v = (pab * w3[c]) / (s3 - w3[a] - w3[b]);
+        add("tierce", [a, b, c], v);
+        add("trio", asc(a, b, c), v);
+        if (n > 7) { add("place", [a], v); add("place", [b], v); add("place", [c], v); }
+        add("wide", asc(a, b), v); add("wide", asc(a, c), v); add("wide", asc(b, c), v);
+      }
+    }
+  }
+  return t;
+}
+
+/** その券種で当たる確率が高い順に k 点 (同じ点数で的中率が最大になる買い目) */
+export const topTickets = (tables, type, k) =>
+  [...tables[type].entries()].sort((x, y) => y[1] - x[1]).slice(0, k).map(([key]) => [type, key.split("-").map(Number)]);
 
 /** ケリー基準で賭ける割合。期待値 pO ≤ 1 なら 0 (賭けない)。fraction は安全のための割引 */
 export const kelly = (p, odds, fraction = 0.25) => (odds > 1 && p * odds > 1 ? fraction * (p * odds - 1) / (odds - 1) : 0);
@@ -169,13 +219,15 @@ export function oddsFrom(p, takeout) {
 }
 
 /**
- * 市場 (単勝オッズ) から、組み合わせ馬券の市場の確率を推定する (Harville の公式)。
- * 1 着 i・2 着 j の確率 = qᵢ × qⱼ / (1 − qᵢ)。単勝以外のオッズは取り込んでいないので、その推定に使う。
+ * 市場 (単勝オッズ) から、組み合わせ馬券の市場の確率を推定する (割引 Harville の式。lam = [1, 1] で元の Harville)。
+ * 1 着 i・2 着 j の確率 = qᵢ × qⱼ^λ₂ / Σ_{m≠i} q_m^λ₂。単勝以外のオッズは取り込んでいないので、その推定に使う。
  */
-export function harville(q, type, picks) {
+export function harville(q, type, picks, lam = PRIOR_LAMBDA) {
   const n = q.length;
-  const ex = (i, j) => (i === j ? 0 : (q[i] * q[j]) / Math.max(1e-9, 1 - q[i]));
-  const tri = (i, j, k) => (i === j || j === k || i === k ? 0 : ex(i, j) * (q[k] / Math.max(1e-9, 1 - q[i] - q[j])));
+  const w2 = q.map((v) => Math.max(v, 1e-12) ** lam[0]), w3 = q.map((v) => Math.max(v, 1e-12) ** lam[1]);
+  const s2 = w2.reduce((a, b) => a + b, 0), s3 = w3.reduce((a, b) => a + b, 0);
+  const ex = (i, j) => (i === j ? 0 : (q[i] * w2[j]) / Math.max(1e-9, s2 - w2[i]));
+  const tri = (i, j, k) => (i === j || j === k || i === k ? 0 : ex(i, j) * (w3[k] / Math.max(1e-9, s3 - w3[i] - w3[j])));
   const perms = (x, y, z) => tri(x, y, z) + tri(x, z, y) + tri(y, x, z) + tri(y, z, x) + tri(z, x, y) + tri(z, y, x);
   const [a, b, c] = picks;
   switch (type) {
@@ -197,18 +249,18 @@ export function harville(q, type, picks) {
 }
 
 /**
- * 買い方の比較。印 (勝率の高い順の出走表の番号 order) から、代表的な 7 つの買い方を作り、
+ * 買い方の比較。勝率 p から、代表的な 7 つの買い方を作り (組み合わせは当たる確率が高い順)、
  *   的中率 … シミュレーションで、どれか 1 点でも当たる割合
  *   回収率 … 1 点 100 円ずつ買ったときに戻ってくる額の期待値 ÷ 投資額 (1 を超えれば得)
  * を計算する。単勝は本物のオッズ、それ以外は市場の確率 (Harville) から推定したオッズを使う。
  */
-export function strategies(orders, n, order, q, winOdds) {
-  const plans = planTickets(order).filter((p) => p.tickets.every(([, picks]) => picks.every((i) => i < n)));
+export function strategies(orders, n, p, q, winOdds, lam = PRIOR_LAMBDA) {
+  const plans = planTickets(p.slice(0, n), lam);
   const runs = orders.length / 3;
   return plans.map((p) => {
     const tickets = p.tickets.map(([type, picks]) => ({
       type, picks,
-      odds: type === "win" && winOdds[picks[0]] ? winOdds[picks[0]] : oddsFrom(harville(q, type, picks), BET[type].takeout),
+      odds: type === "win" && winOdds[picks[0]] ? winOdds[picks[0]] : oddsFrom(harville(q, type, picks, lam), BET[type].takeout),
       estimated: !(type === "win" && winOdds[picks[0]]),
     }));
     let anyHit = 0, back = 0;
@@ -280,17 +332,20 @@ export function modelProbs(z, runners, cond, runs = 100000, seed = 20261109) {
   return { f, pace, p };
 }
 
-/** 印の順 (勝率の高い順の出走表の番号) → 7 つの代表的な買い方の買い目 */
-export function planTickets(order) {
-  const [A, B, C, D] = order;
+/**
+ * 勝率 p → 7 つの代表的な買い方の買い目 (Kotlin の Ranking.plans と同じ)。
+ * 点数は以前の「◎ 軸・ボックス」と同じにして、組み合わせを「当たる確率が高い順」に選ぶ。同じ点数なら的中率が最大になる
+ */
+export function planTickets(p, lam = PRIOR_LAMBDA) {
+  const t = betTables(p, lam), n = p.length;
   return [
-    { name: "単勝 ◎", style: "堅実", tickets: [["win", [A]]] },
-    { name: "複勝 ◎", style: "堅実", tickets: [["place", [A]]] },
-    { name: "ワイド ◎-◯", style: "堅実", tickets: [["wide", [A, B]]] },
-    { name: "馬連 ◎→◯▲△", style: "バランス", tickets: [B, C, D].map((x) => ["umaren", [A, x]]) },
-    { name: "馬単 ◎→◯▲△", style: "バランス", tickets: [B, C, D].map((x) => ["umatan", [A, x]]) },
-    { name: "3連複 ◎◯▲△ ボックス", style: "高配当", tickets: [[A, B, C], [A, B, D], [A, C, D], [B, C, D]].map((t) => ["trio", t]) },
-    { name: "3連単 ◎ 1着固定 → ◯▲△", style: "高配当", tickets: [[B, C], [B, D], [C, B], [C, D], [D, B], [D, C]].map(([x, y]) => ["tierce", [A, x, y]]) },
-  ].filter((p) => p.tickets.every(([, picks]) => picks.every((i) => i != null)));
+    { name: "単勝 ◎", style: "堅実", tickets: topTickets(t, "win", 1) },
+    { name: "複勝 (3着内率 1位)", style: "堅実", tickets: topTickets(t, "place", 1) },
+    n >= 3 && { name: "ワイド 的中率最大 1点", style: "堅実", tickets: topTickets(t, "wide", 1) },
+    n >= 4 && { name: "馬連 的中率最大 3点", style: "バランス", tickets: topTickets(t, "umaren", 3) },
+    n >= 4 && { name: "馬単 的中率最大 3点", style: "バランス", tickets: topTickets(t, "umatan", 3) },
+    n >= 4 && { name: "3連複 的中率最大 4点", style: "高配当", tickets: topTickets(t, "trio", 4) },
+    n >= 4 && { name: "3連単 的中率最大 6点", style: "高配当", tickets: topTickets(t, "tierce", 6) },
+  ].filter(Boolean);
 }
 

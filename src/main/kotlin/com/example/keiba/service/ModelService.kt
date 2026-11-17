@@ -26,6 +26,9 @@ import kotlin.math.sqrt
 //   4. 「1 レースずつ外して学習し、外したレースで当てる」交差検証で、対数損失 (小さいほど正確) を比べる
 //   5. 市場 (オッズそのまま) より、統計的にはっきり (2 標準誤差より) 良いモデルだけを採用する。
 //      どれも良くなければ「市場」を採用する。データが増えるたびに学習し直すので、根拠ができた時点で自動で切り替わる
+//      α には「1 (市場どおり)」を中心とする事前分布、β には「0」を中心とする事前分布をつけて推定する (MAP 推定)。
+//      少ないデータで係数が極端な値になる「過学習」を防ぎ、データが増えるほどデータの値に近づく
+//   6. 2 着・3 着の確率は「割引 Harville モデル」(Ranking.kt) で出す。その λ₂・λ₃ も、過去のレースの 2・3 着で推定する
 // 確率は softmax なので、合計は必ず 1 (100%)。
 
 @Serializable data class PastRun(val place: Int? = null, val field: Int? = null, val grade: String = "", val diff: Double? = null, val distance: Int? = null, val surface: String = "", val corners: List<Int> = emptyList())
@@ -63,6 +66,11 @@ data class ModelParams(
     val report: List<ModelScore> = emptyList(),
     val note: String = "",
     val excludedRaces: Int = 0, // 出馬表に抜けがあり、使わなかったレースの数
+    // 2 着・3 着の確率の割引 Harville モデルの指数 (Ranking.kt)。1 なら元の Harville の式
+    val lambda2: Double = Ranking.PRIOR_L2,
+    val lambda3: Double = Ranking.PRIOR_L3,
+    /** 2 着・3 着の当て方の比較 (vsMarket は「元の Harville の式」との差) */
+    val orderReport: List<ModelScore> = emptyList(),
 )
 
 val FEATURE_NAMES = listOf("form", "distFit", "unfamiliarSurface", "noRuns", "paceStyle", "waku")
@@ -125,8 +133,8 @@ object RaceFeatures {
     )
 }
 
-/** 学習・評価に使う 1 レース分: 出走馬の特徴量 X、市場の確率 q、勝ち馬の位置 winner */
-class TrainRace(val id: String, val x: List<DoubleArray>, val q: DoubleArray, val winner: Int, val features: List<Features>, val pace: Double)
+/** 学習・評価に使う 1 レース分: 出走馬の特徴量 X、市場の確率 q、勝ち馬の位置 winner、1〜3 着の位置 top (分かる分だけ) */
+class TrainRace(val id: String, val x: List<DoubleArray>, val q: DoubleArray, val winner: Int, val features: List<Features>, val pace: Double, val top: IntArray = intArrayOf(winner))
 
 class ModelService(private val resultsUrl: String? = null) {
     private val json = Json { ignoreUnknownKeys = true }
@@ -174,13 +182,16 @@ class ModelService(private val resultsUrl: String? = null) {
             val run = r.card.runners.filter { !it.scratched && it.num != null && it.num !in out && (it.odds ?: 0.0) > 0 }
             val winNum = r.result.order.firstOrNull { it.place == 1 }?.num
             val w = run.indexOfFirst { it.num == winNum }
+            // 1〜3 着の位置。同着などで 1 着が 2 頭いると 2 着がいないので、そこで打ち切る
+            val top = (1..3).map { k -> r.result.order.filter { it.place == k }.mapNotNull { f -> run.indexOfFirst { it.num == f.num }.takeIf { it >= 0 } } }
+                .takeWhile { it.size == 1 }.map { it[0] }.toIntArray()
             if (run.size < 4 || w < 0) return@mapNotNull null
             val surface = RaceFeatures.normSurface(r.card.header.surface)
             val f = run.map { RaceFeatures.features(it, surface, r.card.header.distance) }
             val pace = RaceFeatures.pace(f.map { it.style })
             val inv = run.map { 1 / it.odds!! }
             val sum = inv.sum()
-            TrainRace(r.id, f.mapIndexed { i, v -> RaceFeatures.vector(v, pace, run[i].waku) }, inv.map { it / sum }.toDoubleArray(), w, f, pace)
+            TrainRace(r.id, f.mapIndexed { i, v -> RaceFeatures.vector(v, pace, run[i].waku) }, inv.map { it / sum }.toDoubleArray(), w, f, pace, top.takeIf { it.isNotEmpty() && it[0] == w } ?: intArrayOf(w))
         }
 
         fun softmax(u: DoubleArray): DoubleArray {
@@ -199,9 +210,11 @@ class ModelService(private val resultsUrl: String? = null) {
 
         /**
          * 条件付きロジットを最尤推定する (ニュートン法)。useMarket なら α も推定、useX なら β も推定。
-         * β には L2 正則化 (λ/2)·|β|² を掛ける (少ないデータで係数が大きくなりすぎる「過学習」を防ぐ)。α には掛けない
+         * β には L2 正則化 (λ/2)·|β|² を掛ける (少ないデータで係数が大きくなりすぎる「過学習」を防ぐ)。
+         * α には (alphaPrior/2)·(α − 1)² を掛ける。「α は 1 (市場どおり) の近く、標準偏差 1/√alphaPrior ≈ 0.2」という事前分布で、
+         * これがないと数十レースでは α が偶然のばらつきで大きく動き、交差検証で市場に負けていた
          */
-        fun estimate(train: List<TrainRace>, useMarket: Boolean, useX: Boolean, lambda: Double = 5.0): ModelParams {
+        fun estimate(train: List<TrainRace>, useMarket: Boolean, useX: Boolean, lambda: Double = 5.0, alphaPrior: Double = 25.0): ModelParams {
             val k = FEATURE_NAMES.size
             val all = train.flatMap { it.x }
             val mean = if (useX) List(k) { j -> all.map { it[j] }.average() } else List(k) { 0.0 }
@@ -223,6 +236,7 @@ class ModelService(private val resultsUrl: String? = null) {
                     for (a in 0 until dim) for (b in 0 until dim) h[a][b] -= z.indices.sumOf { i -> p[i] * (z[i][a] - ez[a]) * (z[i][b] - ez[b]) }
                 }
                 for (c in 0 until dim) if (penal[c]) { g[c] -= lambda * theta[c]; h[c][c] -= lambda }
+                if (useMarket) { g[0] -= alphaPrior * (theta[0] - 1); h[0][0] -= alphaPrior }
                 val step = solve(h, g) // θ ← θ − H⁻¹ g
                 for (c in 0 until dim) theta[c] -= step[c]
                 if (step.maxOf { abs(it) } < 1e-10) break // 収束した
@@ -317,10 +331,44 @@ class ModelService(private val resultsUrl: String? = null) {
                 "market_features" -> estimate(races, true, true)
                 else -> ModelParams()
             }
+            // 2 着・3 着: 採用した勝率に、割引 Harville の λ₂・λ₃ を推定する。比べるのは元の Harville (λ = 1)
+            val pOf = { r: TrainRace -> probs(p, r.x, r.q) }
+            val ranked = races.filter { it.top.size >= 2 }.map { pOf(it) to it.top }
+            val l2 = Ranking.fitLambda(ranked, 2, Ranking.PRIOR_L2)
+            val l3 = Ranking.fitLambda(ranked, 3, Ranking.PRIOR_L3)
+            val orderReport = orderReport(ranked)
             return p.copy(
+                lambda2 = l2, lambda3 = l3, orderReport = orderReport,
                 fittedAt = fittedAt, races = races.size, runners = races.sumOf { it.q.size }, selected = selected, report = report,
                 note = if (best == null) "市場 (単勝オッズ) より、はっきり良いモデルはまだありません。勝率は市場の確率を使います" else "${best.label} が市場より良かったので採用しました",
             )
+        }
+
+        /**
+         * 2 着・3 着の当て方を比べる (2 着と 3 着の負の対数尤度の和、1 レースあたり)。
+         *   harville   … 元の Harville の式 (λ = 1)
+         *   benter     … 文献の値 (λ₂ = 0.81、λ₃ = 0.65) で固定
+         *   discounted … λ を推定 (1 レースずつ外して推定し、外したレースで当てる交差検証)
+         */
+        fun orderReport(ranked: List<Pair<DoubleArray, IntArray>>): List<ModelScore> {
+            if (ranked.size < 2) return emptyList()
+            fun loss(p: DoubleArray, top: IntArray, l2: Double, l3: Double) =
+                Ranking.stageLoss(p, top, 2, l2) + if (top.size >= 3) Ranking.stageLoss(p, top, 3, l3) else 0.0
+            val harville = ranked.map { (p, t) -> loss(p, t, 1.0, 1.0) }
+            val per = linkedMapOf(
+                "harville" to harville,
+                "benter" to ranked.map { (p, t) -> loss(p, t, Ranking.PRIOR_L2, Ranking.PRIOR_L3) },
+                "discounted" to ranked.indices.map { i ->
+                    val train = ranked.filterIndexed { j, _ -> j != i }
+                    loss(ranked[i].first, ranked[i].second, Ranking.fitLambda(train, 2, Ranking.PRIOR_L2), Ranking.fitLambda(train, 3, Ranking.PRIOR_L3))
+                },
+            )
+            val labels = mapOf("harville" to "Harville の式 (これまで)", "benter" to "割引 Harville (文献の λ)", "discounted" to "割引 Harville (λ を推定・交差検証)")
+            return per.map { (name, ll) ->
+                val d = ll.zip(harville) { a, b -> a - b }
+                val se = sqrt(d.map { (it - d.average()).let { x -> x * x } }.sum() / max(1, d.size - 1) / d.size)
+                ModelScore(name, labels.getValue(name), ll.average(), if (name == "harville") null else d.average(), if (name == "harville") null else se)
+            }
         }
     }
 }
